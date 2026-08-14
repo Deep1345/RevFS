@@ -1,0 +1,17 @@
+# Build artifacts
+obj/
+revfs
+revfs-server
+
+# Runtime data
+data/
+
+# macOS
+.DS_Store
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
