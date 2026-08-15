@@ -2,6 +2,8 @@
 obj/
 revfs
 revfs-server
+test_file
+*.dSYM/
 
 # Runtime data
 data/

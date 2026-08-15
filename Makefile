@@ -12,7 +12,7 @@ BIN     = revfs
 SRCS = $(wildcard $(SRC_DIR)/*.c)
 OBJS = $(patsubst $(SRC_DIR)/%.c, $(OBJ_DIR)/%.o, $(SRCS))
 
-.PHONY: all clean dirs
+.PHONY: all clean dirs test
 
 all: dirs $(BIN)
 
@@ -26,5 +26,15 @@ dirs:
 	@mkdir -p $(OBJ_DIR)
 	@mkdir -p data
 
+# -------- Tests --------
+test: dirs test_file
+	@echo ""
+	@echo "Running Day 2 tests..."
+	@./test_file
+
+test_file: tests/test_file.c src/file.c
+	$(CC) $(CFLAGS) -o $@ $^
+
 clean:
-	rm -rf $(OBJ_DIR) $(BIN)
+	rm -rf $(OBJ_DIR) $(BIN) test_file
+
