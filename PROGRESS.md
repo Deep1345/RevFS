@@ -45,12 +45,32 @@
 
 ---
 
-## ⬜ Remaining
-
 ### Day 3 — Chunking + SHA-256 Content Addressing
-- `src/chunk.c` — Split files into 4 MB chunks, compute SHA-256 hash per chunk, store chunks by hash
-- Content-addressed storage: hash IS the filename
-- Natural deduplication: if hash exists → skip write
+**Files:**
+- `src/chunk.c` — Content-addressed chunk storage with SHA-256 hashing
+- `tests/test_chunk.c` — 10 automated tests (all passing)
+
+**Functions implemented:**
+| Function | Purpose |
+|----------|---------|
+| `revfs_sha256()` | SHA-256 hash of in-memory data → 64-char hex string |
+| `revfs_sha256_fd()` | SHA-256 hash of an open file descriptor (streaming) |
+| `revfs_chunk_store_path()` | Build content-addressed path: `data/chunks/ab/<hash>` |
+| `revfs_chunk_store()` | Hash data, store chunk atomically (skip if dedup) |
+| `revfs_chunk_load()` | Load a chunk by its hash from the store |
+| `revfs_chunk_exists()` | Check if a chunk hash exists in the store |
+| `revfs_file_chunk()` | Split a file into 4 MB chunks, store each, return hashes |
+| `revfs_chunks_reassemble()` | Reassemble a file from ordered chunk hashes |
+
+**Key design decisions:**
+- Uses Apple CommonCrypto (macOS) for SHA-256 — zero external dependencies
+- Atomic writes via temp file + rename to prevent partial chunks on crash
+- Two-char prefix directories (`data/chunks/ab/`) to avoid FS performance issues
+- Natural deduplication: if hash exists → skip write, return 1
+
+---
+
+## ⬜ Remaining
 
 ### Day 4 — Upload + Metadata Persistence
 - `src/upload.c` — Upload logic: chunk file → hash → store chunks → write metadata
@@ -106,7 +126,7 @@ revfs/
 ├── src/
 │   ├── main.c          ← CLI entry point                    ✅ Day 1
 │   ├── file.c          ← POSIX file abstraction             ✅ Day 2
-│   ├── chunk.c         ← Chunking + SHA-256                 ⬜ Day 3
+│   ├── chunk.c         ← Chunking + SHA-256                 ✅ Day 3
 │   ├── upload.c        ← Upload logic                       ⬜ Day 4
 │   ├── download.c      ← Download + reconstruct             ⬜ Day 5
 │   ├── version.c       ← Versioning                         ⬜ Day 6
@@ -118,12 +138,13 @@ revfs/
 │   ├── replication.c   ← Two-node replication               ⬜ Day 12
 │   └── journal.c       ← WAL journaling                     ⬜ Day 13
 ├── include/
-│   └── revfs.h         ← Global header                      ✅ Day 1+2
+│   └── revfs.h         ← Global header                      ✅ Day 1+2+3
 ├── tests/
-│   └── test_file.c     ← Day 2 tests (8/8 pass)            ✅ Day 2
+│   ├── test_file.c     ← Day 2 tests (8/8 pass)            ✅ Day 2
+│   └── test_chunk.c    ← Day 3 tests (10/10 pass)          ✅ Day 3
 ├── data/               ← Runtime chunk/metadata storage
 ├── docs/               ← Architecture docs
-├── Makefile            ← Build system                        ✅ Day 1+2
+├── Makefile            ← Build system                        ✅ Day 1+2+3
 ├── README.md           ← Project docs                        ✅ Day 1
 ├── PROGRESS.md         ← This file
 └── .gitignore                                                ✅ Day 1

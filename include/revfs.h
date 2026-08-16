@@ -61,4 +61,39 @@ int      revfs_file_sync(int fd);
 ssize_t  revfs_file_append(const char *path, const void *buf, size_t count);
 int      revfs_mkdir_p(const char *path, mode_t mode);
 
+/* ===================================================================
+ *  Day 3 — Chunking + SHA-256 Content-Addressed Storage
+ *
+ *  Files are split into fixed-size chunks (REVFS_CHUNK_SIZE).
+ *  Each chunk is hashed with SHA-256 and stored by its hash.
+ *  Duplicate chunks are naturally deduplicated.
+ * =================================================================== */
+
+/* SHA-256 produces 32 bytes = 64 hex chars + NUL */
+#define REVFS_HASH_HEX_SIZE  65
+
+/* Maximum number of chunks per file (supports files up to ~4 TB) */
+#define REVFS_MAX_CHUNKS     1048576
+
+/* SHA-256 hashing */
+int      revfs_sha256(const void *data, size_t len, char *hex_out);
+int      revfs_sha256_fd(int fd, char *hex_out);
+
+/* Chunk storage (content-addressed) */
+int      revfs_chunk_store_path(const char *hash_hex, char *path_out,
+                                size_t path_size);
+int      revfs_chunk_store(const void *data, size_t len,
+                           char *hash_hex_out);
+ssize_t  revfs_chunk_load(const char *hash_hex, void *buf,
+                           size_t buf_size);
+int      revfs_chunk_exists(const char *hash_hex);
+
+/* File chunking / reassembly */
+int      revfs_file_chunk(const char *filepath,
+                          char chunk_hashes[][REVFS_HASH_HEX_SIZE],
+                          int max_chunks);
+ssize_t  revfs_chunks_reassemble(const char *output_path,
+                                 const char chunk_hashes[][REVFS_HASH_HEX_SIZE],
+                                 int num_chunks);
+
 #endif /* REVFS_H */
