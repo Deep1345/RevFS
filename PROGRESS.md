@@ -70,11 +70,42 @@
 
 ---
 
-## ⬜ Remaining
-
 ### Day 4 — Upload + Metadata Persistence
-- `src/upload.c` — Upload logic: chunk file → hash → store chunks → write metadata
-- Metadata format: filename, version, chunk list, timestamp (JSON-like flat files)
+**Files:**
+- `src/upload.c` — Upload pipeline + metadata read/write + version tracking
+- `tests/test_upload.c` — 10 automated tests (all passing)
+
+**Functions implemented:**
+| Function | Purpose |
+|----------|---------|
+| `revfs_upload()` | Main entry: validate → chunk → store → version → write metadata |
+| `revfs_meta_write()` | Write metadata atomically (temp + rename) to `data/meta/<name>/v<N>.meta` |
+| `revfs_meta_read()` | Parse metadata file, supports reading latest version (version=-1) |
+| `revfs_meta_next_version()` | Scan metadata dir for existing versions, return next number |
+| `revfs_meta_list_files()` | List all uploaded files by scanning `data/meta/` subdirectories |
+
+**Metadata format** (line-oriented key=value, zero external dependencies):
+```
+name=myfile.txt
+version=1
+chunks=3
+size=12582912
+timestamp=1723886400
+hash.0=abcdef0123...
+hash.1=fedcba9876...
+hash.2=1234567890...
+```
+
+**Key design decisions:**
+- Metadata stored as flat key=value files — no JSON library needed in C
+- Atomic writes via temp file + rename (crash-safe, same pattern as chunk store)
+- Version numbering by scanning `data/meta/<filename>/` for `v<N>.meta` files
+- `revfs_meta_t` struct uses `REVFS_META_MAX_CHUNKS` (4096) to stay heap-friendly
+- Heap allocation for chunk hashes during upload (avoids stack overflow)
+
+---
+
+## ⬜ Remaining
 
 ### Day 5 — Download + File Reconstruction
 - `src/download.c` — Read metadata → fetch chunks by hash → reassemble original file
@@ -127,7 +158,7 @@ revfs/
 │   ├── main.c          ← CLI entry point                    ✅ Day 1
 │   ├── file.c          ← POSIX file abstraction             ✅ Day 2
 │   ├── chunk.c         ← Chunking + SHA-256                 ✅ Day 3
-│   ├── upload.c        ← Upload logic                       ⬜ Day 4
+│   ├── upload.c        ← Upload + metadata persistence      ✅ Day 4
 │   ├── download.c      ← Download + reconstruct             ⬜ Day 5
 │   ├── version.c       ← Versioning                         ⬜ Day 6
 │   ├── restore.c       ← Restore                            ⬜ Day 7
@@ -138,13 +169,14 @@ revfs/
 │   ├── replication.c   ← Two-node replication               ⬜ Day 12
 │   └── journal.c       ← WAL journaling                     ⬜ Day 13
 ├── include/
-│   └── revfs.h         ← Global header                      ✅ Day 1+2+3
+│   └── revfs.h         ← Global header                      ✅ Day 1+2+3+4
 ├── tests/
 │   ├── test_file.c     ← Day 2 tests (8/8 pass)            ✅ Day 2
-│   └── test_chunk.c    ← Day 3 tests (10/10 pass)          ✅ Day 3
+│   ├── test_chunk.c    ← Day 3 tests (10/10 pass)          ✅ Day 3
+│   └── test_upload.c   ← Day 4 tests (10/10 pass)          ✅ Day 4
 ├── data/               ← Runtime chunk/metadata storage
 ├── docs/               ← Architecture docs
-├── Makefile            ← Build system                        ✅ Day 1+2+3
+├── Makefile            ← Build system                        ✅ Day 1+2+3+4
 ├── README.md           ← Project docs                        ✅ Day 1
 ├── PROGRESS.md         ← This file
 └── .gitignore                                                ✅ Day 1

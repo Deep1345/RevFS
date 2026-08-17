@@ -48,8 +48,12 @@ int main(int argc, char *argv[])
     }
 
     if (strcmp(cmd, "upload") == 0) {
-        fprintf(stderr, "upload: not yet implemented\n");
-        return EXIT_FAILURE;
+        if (argc < 3) {
+            fprintf(stderr, "Usage: %s upload <file>\n", argv[0]);
+            return EXIT_FAILURE;
+        }
+        int version = revfs_upload(argv[2]);
+        return (version > 0) ? EXIT_SUCCESS : EXIT_FAILURE;
     }
 
     if (strcmp(cmd, "download") == 0) {

@@ -27,13 +27,16 @@ dirs:
 	@mkdir -p data
 
 # -------- Tests --------
-test: dirs test_file test_chunk
+test: dirs test_file test_chunk test_upload
 	@echo ""
 	@echo "Running Day 2 tests..."
 	@./test_file
 	@echo ""
 	@echo "Running Day 3 tests..."
 	@./test_chunk
+	@echo ""
+	@echo "Running Day 4 tests..."
+	@./test_upload
 
 test_file: tests/test_file.c src/file.c
 	$(CC) $(CFLAGS) -o $@ $^
@@ -41,7 +44,10 @@ test_file: tests/test_file.c src/file.c
 test_chunk: tests/test_chunk.c src/chunk.c src/file.c
 	$(CC) $(CFLAGS) -o $@ $^
 
+test_upload: tests/test_upload.c src/upload.c src/chunk.c src/file.c
+	$(CC) $(CFLAGS) -o $@ $^
+
 clean:
-	rm -rf $(OBJ_DIR) $(BIN) test_file test_chunk
+	rm -rf $(OBJ_DIR) $(BIN) test_file test_chunk test_upload
 
 

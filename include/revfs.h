@@ -96,4 +96,57 @@ ssize_t  revfs_chunks_reassemble(const char *output_path,
                                  const char chunk_hashes[][REVFS_HASH_HEX_SIZE],
                                  int num_chunks);
 
+/* ===================================================================
+ *  Day 4 — Upload + Metadata Persistence
+ *
+ *  Files are uploaded by chunking them, storing the chunks, and
+ *  writing a metadata file that records the filename, version,
+ *  chunk list, size, and timestamp.
+ *
+ *  Metadata lives at: data/meta/<filename>/v<N>.meta
+ *  Format is line-oriented key=value (easy to parse in C).
+ * =================================================================== */
+
+/* Maximum filename length (basename only) */
+#define REVFS_MAX_FILENAME   256
+
+/* Maximum path length for metadata files */
+#define REVFS_MAX_PATH       1024
+
+/* Maximum chunks tracked in a single metadata record.
+ * 4096 chunks × 4 MB = 16 GB max file size per version.
+ * This keeps revfs_meta_t at ~260 KB (heap-allocatable). */
+#define REVFS_META_MAX_CHUNKS  4096
+
+/* Metadata for a single file version */
+typedef struct {
+    char    name[REVFS_MAX_FILENAME];       /* original basename         */
+    int     version;                        /* version number (1, 2, …)  */
+    int     num_chunks;                     /* number of chunks          */
+    off_t   file_size;                      /* original file size bytes  */
+    long    timestamp;                      /* upload time (Unix epoch)  */
+    char    chunk_hashes[REVFS_META_MAX_CHUNKS][REVFS_HASH_HEX_SIZE];
+} revfs_meta_t;
+
+/* Upload a file: chunk → store → write metadata.
+ * Returns the version number on success, -1 on error. */
+int      revfs_upload(const char *filepath);
+
+/* Write metadata to disk at data/meta/<name>/v<version>.meta */
+int      revfs_meta_write(const revfs_meta_t *meta);
+
+/* Read metadata from disk for a given filename and version.
+ * If version == -1, reads the latest version. */
+int      revfs_meta_read(const char *filename, int version,
+                         revfs_meta_t *meta_out);
+
+/* Determine the next version number for a filename.
+ * Returns 1 if no versions exist yet. */
+int      revfs_meta_next_version(const char *filename);
+
+/* List all files that have been uploaded.
+ * Writes basenames into `names`, returns count or -1 on error. */
+int      revfs_meta_list_files(char names[][REVFS_MAX_FILENAME],
+                               int max_names);
+
 #endif /* REVFS_H */
