@@ -149,4 +149,20 @@ int      revfs_meta_next_version(const char *filename);
 int      revfs_meta_list_files(char names[][REVFS_MAX_FILENAME],
                                int max_names);
 
+/* ===================================================================
+ *  Day 5 — Download + File Reconstruction
+ *
+ *  Given a filename and version, reads the metadata, fetches all
+ *  chunks from the content-addressed store, and reassembles the
+ *  original file at the specified output path.
+ * =================================================================== */
+
+/* Download (reconstruct) a file from RevFS.
+ * `filename`    — basename of the file (as stored in metadata).
+ * `version`     — version to download, or -1 for latest.
+ * `output_path` — where to write the reconstructed file.
+ * Returns 0 on success, -1 on error. */
+int      revfs_download(const char *filename, int version,
+                         const char *output_path);
+
 #endif /* REVFS_H */

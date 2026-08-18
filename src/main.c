@@ -57,8 +57,26 @@ int main(int argc, char *argv[])
     }
 
     if (strcmp(cmd, "download") == 0) {
-        fprintf(stderr, "download: not yet implemented\n");
-        return EXIT_FAILURE;
+        if (argc < 4) {
+            fprintf(stderr, "Usage: %s download <file> <output> [--version N]\n",
+                    argv[0]);
+            return EXIT_FAILURE;
+        }
+        const char *filename    = argv[2];
+        const char *output_path = argv[3];
+        int version = -1;  /* default: latest */
+
+        /* Check for optional --version flag */
+        if (argc >= 6 && strcmp(argv[4], "--version") == 0) {
+            version = atoi(argv[5]);
+            if (version < 1) {
+                fprintf(stderr, "Invalid version: %s\n", argv[5]);
+                return EXIT_FAILURE;
+            }
+        }
+
+        int rc = revfs_download(filename, version, output_path);
+        return (rc == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
     }
 
     if (strcmp(cmd, "history") == 0) {

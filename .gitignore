@@ -4,6 +4,8 @@ revfs
 revfs-server
 test_file
 test_chunk
+test_upload
+test_download
 compile_commands.json
 *.dSYM/
 
@@ -19,3 +21,4 @@ data/
 *~
 .vscode/
 .idea/
+.cache/
