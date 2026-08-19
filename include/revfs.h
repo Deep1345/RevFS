@@ -165,4 +165,29 @@ int      revfs_meta_list_files(char names[][REVFS_MAX_FILENAME],
 int      revfs_download(const char *filename, int version,
                          const char *output_path);
 
+/* ===================================================================
+ *  Day 6 — File Versioning
+ *
+ *  Version history and file listing.  All functions build on the
+ *  metadata infrastructure from Day 4.
+ * =================================================================== */
+
+/* Count how many versions exist for a filename.
+ * Returns 0 if file has never been uploaded, -1 on error. */
+int      revfs_version_count(const char *filename);
+
+/* Read all version metadata for a file into a caller-supplied array.
+ * Returns the number of versions read, or -1 on error. */
+int      revfs_version_list(const char *filename,
+                             revfs_meta_t *versions_out, int max_versions);
+
+/* Print full version history for a file to stdout.
+ * Returns the number of versions printed, -1 on error. */
+int      revfs_history(const char *filename);
+
+/* List all files stored in RevFS with version counts.
+ * Prints a summary to stdout.
+ * Returns the number of files found, -1 on error. */
+int      revfs_list_files(void);
+
 #endif /* REVFS_H */

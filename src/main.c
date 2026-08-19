@@ -80,8 +80,12 @@ int main(int argc, char *argv[])
     }
 
     if (strcmp(cmd, "history") == 0) {
-        fprintf(stderr, "history: not yet implemented\n");
-        return EXIT_FAILURE;
+        if (argc < 3) {
+            fprintf(stderr, "Usage: %s history <file>\n", argv[0]);
+            return EXIT_FAILURE;
+        }
+        int rc = revfs_history(argv[2]);
+        return (rc > 0) ? EXIT_SUCCESS : EXIT_FAILURE;
     }
 
     if (strcmp(cmd, "restore") == 0) {
@@ -90,8 +94,8 @@ int main(int argc, char *argv[])
     }
 
     if (strcmp(cmd, "list") == 0) {
-        fprintf(stderr, "list: not yet implemented\n");
-        return EXIT_FAILURE;
+        int rc = revfs_list_files();
+        return (rc >= 0) ? EXIT_SUCCESS : EXIT_FAILURE;
     }
 
     if (strcmp(cmd, "stats") == 0) {

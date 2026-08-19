@@ -6,6 +6,7 @@ test_file
 test_chunk
 test_upload
 test_download
+test_version
 compile_commands.json
 *.dSYM/
 

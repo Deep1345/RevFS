@@ -131,11 +131,33 @@ hash.2=1234567890...
 
 ---
 
-## ⬜ Remaining
-
 ### Day 6 — File Versioning
-- `src/version.c` — Track multiple versions per file, linked list of versions
-- `./revfs history <file>` shows all versions
+**Files:**
+- `src/version.c` — Version history listing + file enumeration
+- `tests/test_version.c` — 10 automated tests (all passing)
+
+**Functions implemented:**
+| Function | Purpose |
+|----------|---------|
+| `revfs_version_count()` | Count how many versions exist for a filename |
+| `revfs_version_list()` | Read all version metadata into a caller-supplied array |
+| `revfs_history()` | Print full version history for a file to stdout |
+| `revfs_list_files()` | List all files stored in RevFS with version counts |
+
+**CLI commands wired up:**
+- `./revfs history <file>` — Shows all versions with size, chunk count, timestamp, and latest marker
+- `./revfs list` — Lists all stored files with version counts and latest file size
+
+**Key design decisions:**
+- Builds entirely on Day 4 metadata infrastructure (`revfs_meta_read`, `revfs_meta_next_version`, `revfs_meta_list_files`)
+- Human-readable size formatting (B/KB/MB) and timestamp formatting in output
+- `revfs_version_list()` exposes structured data for programmatic use (used by tests)
+- Gracefully skips corrupt/missing version files during enumeration
+- Heap-allocated `revfs_meta_t` for history display (~260 KB per struct)
+
+---
+
+## ⬜ Remaining
 
 ### Day 7 — Version Restore
 - `src/restore.c` — Restore a specific version (non-destructive: creates new version = copy of old)
@@ -183,7 +205,7 @@ revfs/
 │   ├── chunk.c         ← Chunking + SHA-256                 ✅ Day 3
 │   ├── upload.c        ← Upload + metadata persistence      ✅ Day 4
 │   ├── download.c      ← Download + reconstruct             ✅ Day 5
-│   ├── version.c       ← Versioning                         ⬜ Day 6
+│   ├── version.c       ← Versioning                         ✅ Day 6
 │   ├── restore.c       ← Restore                            ⬜ Day 7
 │   ├── server.c        ← TCP server                         ⬜ Day 8
 │   ├── client.c        ← TCP client                         ⬜ Day 9
@@ -192,15 +214,16 @@ revfs/
 │   ├── replication.c   ← Two-node replication               ⬜ Day 12
 │   └── journal.c       ← WAL journaling                     ⬜ Day 13
 ├── include/
-│   └── revfs.h         ← Global header                      ✅ Day 1+2+3+4+5
+│   └── revfs.h         ← Global header                      ✅ Day 1+2+3+4+5+6
 ├── tests/
 │   ├── test_file.c     ← Day 2 tests (8/8 pass)            ✅ Day 2
 │   ├── test_chunk.c    ← Day 3 tests (10/10 pass)          ✅ Day 3
 │   ├── test_upload.c   ← Day 4 tests (10/10 pass)          ✅ Day 4
-│   └── test_download.c ← Day 5 tests (10/10 pass)          ✅ Day 5
+│   ├── test_download.c ← Day 5 tests (10/10 pass)          ✅ Day 5
+│   └── test_version.c  ← Day 6 tests (10/10 pass)          ✅ Day 6
 ├── data/               ← Runtime chunk/metadata storage
 ├── docs/               ← Architecture docs
-├── Makefile            ← Build system                        ✅ Day 1+2+3+4+5
+├── Makefile            ← Build system                        ✅ Day 1+2+3+4+5+6
 ├── README.md           ← Project docs                        ✅ Day 1
 ├── PROGRESS.md         ← This file
 └── .gitignore                                                ✅ Day 1
