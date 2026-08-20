@@ -89,8 +89,18 @@ int main(int argc, char *argv[])
     }
 
     if (strcmp(cmd, "restore") == 0) {
-        fprintf(stderr, "restore: not yet implemented\n");
-        return EXIT_FAILURE;
+        if (argc < 4) {
+            fprintf(stderr, "Usage: %s restore <file> <version>\n", argv[0]);
+            return EXIT_FAILURE;
+        }
+        const char *filename = argv[2];
+        int version = atoi(argv[3]);
+        if (version < 1) {
+            fprintf(stderr, "Invalid version: %s\n", argv[3]);
+            return EXIT_FAILURE;
+        }
+        int new_ver = revfs_restore(filename, version);
+        return (new_ver > 0) ? EXIT_SUCCESS : EXIT_FAILURE;
     }
 
     if (strcmp(cmd, "list") == 0) {

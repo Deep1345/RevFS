@@ -155,12 +155,28 @@ hash.2=1234567890...
 - Gracefully skips corrupt/missing version files during enumeration
 - Heap-allocated `revfs_meta_t` for history display (~260 KB per struct)
 
+### Day 7 — Version Restore
+**Files:**
+- `src/restore.c` — Non-destructive version restore
+- `tests/test_restore.c` — 10 automated tests (all passing)
+
+**Functions implemented:**
+| Function | Purpose |
+|----------|---------|
+| `revfs_restore()` | Restore a specific version by creating a new version copying old metadata |
+
+**CLI commands wired up:**
+- `./revfs restore <file> <version>` — Restores `<file>` to `<version>` by generating a new version pointing to the existing content chunks
+
+**Key design decisions:**
+- Non-destructive: older versions are preserved, creating a new monotonic version entry (e.g. restoring v1 when latest is v3 creates v4)
+- Zero data re-copying: leverages content-addressed chunk deduplication, sharing chunk hashes directly
+- Chunk validation: verifies chunk availability in CAS before writing the new metadata record
+- Prevents redundant restores when target version is already the latest version
+
 ---
 
 ## ⬜ Remaining
-
-### Day 7 — Version Restore
-- `src/restore.c` — Restore a specific version (non-destructive: creates new version = copy of old)
 
 ### Day 8 — TCP Server Skeleton
 - `src/server.c` — TCP server with `socket()`, `bind()`, `listen()`, `accept()`
@@ -206,7 +222,7 @@ revfs/
 │   ├── upload.c        ← Upload + metadata persistence      ✅ Day 4
 │   ├── download.c      ← Download + reconstruct             ✅ Day 5
 │   ├── version.c       ← Versioning                         ✅ Day 6
-│   ├── restore.c       ← Restore                            ⬜ Day 7
+│   ├── restore.c       ← Restore                            ✅ Day 7
 │   ├── server.c        ← TCP server                         ⬜ Day 8
 │   ├── client.c        ← TCP client                         ⬜ Day 9
 │   ├── thread.c        ← Thread pool                        ⬜ Day 10
@@ -214,16 +230,17 @@ revfs/
 │   ├── replication.c   ← Two-node replication               ⬜ Day 12
 │   └── journal.c       ← WAL journaling                     ⬜ Day 13
 ├── include/
-│   └── revfs.h         ← Global header                      ✅ Day 1+2+3+4+5+6
+│   └── revfs.h         ← Global header                      ✅ Day 1+2+3+4+5+6+7
 ├── tests/
 │   ├── test_file.c     ← Day 2 tests (8/8 pass)            ✅ Day 2
 │   ├── test_chunk.c    ← Day 3 tests (10/10 pass)          ✅ Day 3
 │   ├── test_upload.c   ← Day 4 tests (10/10 pass)          ✅ Day 4
 │   ├── test_download.c ← Day 5 tests (10/10 pass)          ✅ Day 5
-│   └── test_version.c  ← Day 6 tests (10/10 pass)          ✅ Day 6
+│   ├── test_version.c  ← Day 6 tests (10/10 pass)          ✅ Day 6
+│   └── test_restore.c  ← Day 7 tests (10/10 pass)          ✅ Day 7
 ├── data/               ← Runtime chunk/metadata storage
 ├── docs/               ← Architecture docs
-├── Makefile            ← Build system                        ✅ Day 1+2+3+4+5+6
+├── Makefile            ← Build system                        ✅ Day 1+2+3+4+5+6+7
 ├── README.md           ← Project docs                        ✅ Day 1
 ├── PROGRESS.md         ← This file
 └── .gitignore                                                ✅ Day 1

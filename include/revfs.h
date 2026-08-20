@@ -190,4 +190,18 @@ int      revfs_history(const char *filename);
  * Returns the number of files found, -1 on error. */
 int      revfs_list_files(void);
 
+/* ===================================================================
+ *  Day 7 — Version Restore
+ *
+ *  Non-destructive restore: creates a new version that copies the
+ *  metadata (chunk list) from an older version.  The old version
+ *  is never modified or deleted.  No data is physically copied
+ *  because all chunks are content-addressed and deduplicated.
+ * =================================================================== */
+
+/* Restore a file to a specific version.
+ * Creates a new version that references the same chunks as `source_version`.
+ * Returns the new version number on success, -1 on error. */
+int      revfs_restore(const char *filename, int source_version);
+
 #endif /* REVFS_H */
