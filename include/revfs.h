@@ -25,6 +25,12 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+/* ------- POSIX Networking headers (Day 8+) ------- */
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <poll.h>
+
 /* ===================================================================
  *  Day 2 — POSIX File Abstraction
  *
@@ -203,5 +209,39 @@ int      revfs_list_files(void);
  * Creates a new version that references the same chunks as `source_version`.
  * Returns the new version number on success, -1 on error. */
 int      revfs_restore(const char *filename, int source_version);
+
+/* ===================================================================
+ *  Day 8 — TCP Server Skeleton
+ *
+ *  TCP server implementation using POSIX sockets (socket, bind,
+ *  listen, accept, poll). Supports basic line-oriented commands:
+ *  PING, LIST, INFO, HISTORY, and QUIT.
+ * =================================================================== */
+
+#define REVFS_SERVER_BACKLOG   128
+#define REVFS_MAX_CMD_LEN      1024
+#define REVFS_MAX_RESP_LEN     65536
+
+/* Create and bind a listening TCP socket on `port`.
+ * If `actual_port` is non-NULL and `port == 0`, writes the OS-assigned port.
+ * Returns the listening socket fd, or -1 on error. */
+int      revfs_server_create(int port, int *actual_port);
+
+/* Handle incoming commands from a connected client fd until disconnection
+ * or QUIT command. Returns 0 on clean disconnect, -1 on read/write error. */
+int      revfs_server_handle_client(int client_fd);
+
+/* Process a single command line and write the response to client_fd.
+ * Returns 1 if connection should stay open, 0 if client requested QUIT,
+ * or -1 on I/O error. */
+int      revfs_server_process_command(const char *cmd_line, int client_fd);
+
+/* Start the RevFS TCP server on `port` (blocking accept loop).
+ * Listens for SIGINT/SIGTERM or revfs_server_stop() to cleanly shut down.
+ * Returns 0 on normal exit, -1 on error. */
+int      revfs_server_start(int port);
+
+/* Signal the running server loop to terminate cleanly. */
+void     revfs_server_stop(void);
 
 #endif /* REVFS_H */

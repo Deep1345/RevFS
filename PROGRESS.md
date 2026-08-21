@@ -174,13 +174,42 @@ hash.2=1234567890...
 - Chunk validation: verifies chunk availability in CAS before writing the new metadata record
 - Prevents redundant restores when target version is already the latest version
 
+### Day 8 — TCP Server Skeleton
+**Files:**
+- `src/server.c` — TCP server with `socket()`, `bind()`, `listen()`, `accept()`, `poll()`
+- `tests/test_server.c` — 10 automated tests (all passing)
+
+**Functions implemented:**
+| Function | Purpose |
+|----------|---------|
+| `revfs_server_create()` | Create, configure (`SO_REUSEADDR`), bind, and listen on TCP socket |
+| `revfs_server_start()` | Start server accept loop on specified port with graceful signal shutdown |
+| `revfs_server_stop()` | Signal running server loop to terminate cleanly |
+| `revfs_server_handle_client()` | Read line-delimited commands from client until disconnect or `QUIT` |
+| `revfs_server_process_command()`| Parse and dispatch command (`PING`, `LIST`, `INFO`, `HISTORY`, `HELP`, `QUIT`) |
+
+**Wire protocol implemented:**
+- `PING [msg]` → `PONG [msg]\n`
+- `INFO` → `OK RevFS <version> (chunk_size=4194304, default_port=9000)\n`
+- `LIST` → `OK <N> files\n<filename> <version_count> <size>\n...\nEND\n`
+- `HISTORY <file>` → `OK <N> versions\nv<ver> <size> <chunks> <timestamp>\n...\nEND\n`
+- `HELP` → `OK Supported commands: PING, LIST, INFO, HISTORY <file>, HELP, QUIT\n`
+- `QUIT` / `EXIT` → `BYE\n` (closes socket connection)
+- Error response → `ERR <reason>\n`
+
+**CLI commands wired up:**
+- `./revfs server [port]` — Start TCP server (default: port 9000)
+
+**Key design decisions:**
+- Uses standard POSIX sockets (`<sys/socket.h>`, `<netinet/in.h>`, `<arpa/inet.h>`, `<poll.h>`) with zero external dependencies
+- Non-blocking signal-safe event loop with `poll()` timeout (500ms) for responsive `SIGINT`/`SIGTERM` shutdown
+- `SIGPIPE` ignored to prevent process termination on client disconnect
+- Line-buffered stream processing handling fragmented or concatenated TCP packets
+- Ephemeral port binding (`port 0`) support via `getsockname()` for isolated automated testing
+
 ---
 
 ## ⬜ Remaining
-
-### Day 8 — TCP Server Skeleton
-- `src/server.c` — TCP server with `socket()`, `bind()`, `listen()`, `accept()`
-- Basic commands: PING, LIST
 
 ### Day 9 — Remote Upload/Download over TCP
 - `src/client.c` — TCP client with `connect()`, `send()`, `recv()`
@@ -216,31 +245,32 @@ hash.2=1234567890...
 ```
 revfs/
 ├── src/
-│   ├── main.c          ← CLI entry point                    ✅ Day 1
+│   ├── main.c          ← CLI entry point                    ✅ Day 1+8
 │   ├── file.c          ← POSIX file abstraction             ✅ Day 2
 │   ├── chunk.c         ← Chunking + SHA-256                 ✅ Day 3
 │   ├── upload.c        ← Upload + metadata persistence      ✅ Day 4
 │   ├── download.c      ← Download + reconstruct             ✅ Day 5
 │   ├── version.c       ← Versioning                         ✅ Day 6
 │   ├── restore.c       ← Restore                            ✅ Day 7
-│   ├── server.c        ← TCP server                         ⬜ Day 8
+│   ├── server.c        ← TCP server                         ✅ Day 8
 │   ├── client.c        ← TCP client                         ⬜ Day 9
 │   ├── thread.c        ← Thread pool                        ⬜ Day 10
 │   ├── dedup.c         ← Deduplication + stats              ⬜ Day 11
 │   ├── replication.c   ← Two-node replication               ⬜ Day 12
 │   └── journal.c       ← WAL journaling                     ⬜ Day 13
 ├── include/
-│   └── revfs.h         ← Global header                      ✅ Day 1+2+3+4+5+6+7
+│   └── revfs.h         ← Global header                      ✅ Day 1+2+3+4+5+6+7+8
 ├── tests/
 │   ├── test_file.c     ← Day 2 tests (8/8 pass)            ✅ Day 2
 │   ├── test_chunk.c    ← Day 3 tests (10/10 pass)          ✅ Day 3
 │   ├── test_upload.c   ← Day 4 tests (10/10 pass)          ✅ Day 4
 │   ├── test_download.c ← Day 5 tests (10/10 pass)          ✅ Day 5
 │   ├── test_version.c  ← Day 6 tests (10/10 pass)          ✅ Day 6
-│   └── test_restore.c  ← Day 7 tests (10/10 pass)          ✅ Day 7
+│   ├── test_restore.c  ← Day 7 tests (10/10 pass)          ✅ Day 7
+│   └── test_server.c   ← Day 8 tests (10/10 pass)          ✅ Day 8
 ├── data/               ← Runtime chunk/metadata storage
 ├── docs/               ← Architecture docs
-├── Makefile            ← Build system                        ✅ Day 1+2+3+4+5+6+7
+├── Makefile            ← Build system                        ✅ Day 1+2+3+4+5+6+7+8
 ├── README.md           ← Project docs                        ✅ Day 1
 ├── PROGRESS.md         ← This file
 └── .gitignore                                                ✅ Day 1

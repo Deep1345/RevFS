@@ -27,7 +27,7 @@ dirs:
 	@mkdir -p data
 
 # -------- Tests --------
-test: dirs test_file test_chunk test_upload test_download test_version test_restore
+test: dirs test_file test_chunk test_upload test_download test_version test_restore test_server
 	@echo ""
 	@echo "Running Day 2 tests..."
 	@./test_file
@@ -46,6 +46,9 @@ test: dirs test_file test_chunk test_upload test_download test_version test_rest
 	@echo ""
 	@echo "Running Day 7 tests..."
 	@./test_restore
+	@echo ""
+	@echo "Running Day 8 tests..."
+	@./test_server
 
 test_file: tests/test_file.c src/file.c
 	$(CC) $(CFLAGS) -o $@ $^
@@ -65,7 +68,11 @@ test_version: tests/test_version.c src/version.c src/upload.c src/download.c src
 test_restore: tests/test_restore.c src/restore.c src/version.c src/upload.c src/download.c src/chunk.c src/file.c
 	$(CC) $(CFLAGS) -o $@ $^
 
+test_server: tests/test_server.c src/server.c src/restore.c src/version.c src/upload.c src/download.c src/chunk.c src/file.c
+	$(CC) $(CFLAGS) -o $@ $^
+
 clean:
-	rm -rf $(OBJ_DIR) $(BIN) test_file test_chunk test_upload test_download test_version test_restore
+	rm -rf $(OBJ_DIR) $(BIN) test_file test_chunk test_upload test_download test_version test_restore test_server
+
 
 

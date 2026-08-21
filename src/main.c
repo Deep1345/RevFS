@@ -16,6 +16,7 @@ static void print_usage(const char *program)
     printf("  history  <file>              Show version history\n");
     printf("  restore  <file> <version>    Restore a specific version\n");
     printf("  list                         List all stored files\n");
+    printf("  server   [port]              Start TCP server (default: 9000)\n");
     printf("  stats                        Show storage statistics\n");
     printf("\n");
     printf("Options:\n");
@@ -106,6 +107,19 @@ int main(int argc, char *argv[])
     if (strcmp(cmd, "list") == 0) {
         int rc = revfs_list_files();
         return (rc >= 0) ? EXIT_SUCCESS : EXIT_FAILURE;
+    }
+
+    if (strcmp(cmd, "server") == 0 || strcmp(cmd, "serve") == 0) {
+        int port = REVFS_DEFAULT_PORT;
+        if (argc >= 3) {
+            port = atoi(argv[2]);
+            if (port <= 0 || port > 65535) {
+                fprintf(stderr, "Invalid port: %s\n", argv[2]);
+                return EXIT_FAILURE;
+            }
+        }
+        int rc = revfs_server_start(port);
+        return (rc == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
     }
 
     if (strcmp(cmd, "stats") == 0) {

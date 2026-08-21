@@ -8,6 +8,7 @@ test_upload
 test_download
 test_version
 test_restore
+test_server
 compile_commands.json
 *.dSYM/
 
