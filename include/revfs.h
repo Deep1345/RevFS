@@ -30,6 +30,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <poll.h>
+#include <netdb.h>
 
 /* ===================================================================
  *  Day 2 — POSIX File Abstraction
@@ -243,5 +244,52 @@ int      revfs_server_start(int port);
 
 /* Signal the running server loop to terminate cleanly. */
 void     revfs_server_stop(void);
+
+/* ===================================================================
+ *  Day 9 — Remote Upload/Download over TCP
+ *
+ *  TCP client implementation and wire protocol extensions for remote
+ *  chunk storage, remote metadata retrieval, deduplicated remote upload,
+ *  remote download/reconstruction, remote history, and file listing.
+ * =================================================================== */
+
+/* Connect to a RevFS server at `host`:`port`. Returns socket fd or -1 on error. */
+int      revfs_client_connect(const char *host, int port);
+
+/* Close client connection cleanly (sends QUIT, then closes socket). */
+int      revfs_client_disconnect(int sock);
+
+/* Send PING to server. Populates `resp_out` if non-NULL. Returns 0 on OK/PONG, -1 on error. */
+int      revfs_client_ping(int sock, const char *msg, char *resp_out, size_t resp_size);
+
+/* Check if remote server has a chunk by its SHA-256 hash.
+ * Returns 1 if present, 0 if absent, -1 on error. */
+int      revfs_client_has_chunk(int sock, const char *hash_hex);
+
+/* Store a chunk on the remote server.
+ * Returns 0 on success, -1 on error. */
+int      revfs_client_store_chunk(int sock, const char *hash_hex,
+                                  const void *data, size_t len);
+
+/* Retrieve a chunk from the remote server.
+ * Returns bytes read on success, -1 on error. */
+ssize_t  revfs_client_get_chunk(int sock, const char *hash_hex,
+                                void *buf, size_t buf_size);
+
+/* Retrieve metadata for a file (version, or -1 for latest) from remote server.
+ * Returns 0 on success, -1 on error. */
+int      revfs_client_get_meta(int sock, const char *filename, int version,
+                               revfs_meta_t *meta_out);
+
+/* Upload metadata for a file to the remote server.
+ * Returns the created version number on success, -1 on error. */
+int      revfs_client_upload_meta(int sock, const revfs_meta_t *meta);
+
+/* High-level remote operations */
+int      revfs_client_upload(const char *host, int port, const char *filepath);
+int      revfs_client_download(const char *host, int port, const char *filename,
+                               int version, const char *output_path);
+int      revfs_client_list(const char *host, int port);
+int      revfs_client_history(const char *host, int port, const char *filename);
 
 #endif /* REVFS_H */

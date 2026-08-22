@@ -9,6 +9,7 @@ test_download
 test_version
 test_restore
 test_server
+test_client
 compile_commands.json
 *.dSYM/
 

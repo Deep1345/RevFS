@@ -209,11 +209,44 @@ hash.2=1234567890...
 
 ---
 
-## ⬜ Remaining
-
 ### Day 9 — Remote Upload/Download over TCP
-- `src/client.c` — TCP client with `connect()`, `send()`, `recv()`
-- Wire protocol for upload/download commands
+**Files:**
+- `src/client.c` — TCP client with `connect()`, `send()`, `recv()`, chunk CAS sync & high-level CLI commands
+- `src/server.c` — Extended wire protocol handlers (`HAS_CHUNK`, `STORE_CHUNK`, `GET_CHUNK`, `GET_META`, `UPLOAD_META`)
+- `tests/test_client.c` — 10 automated tests (all passing)
+
+**Functions implemented:**
+| Function | Purpose |
+|----------|---------|
+| `revfs_client_connect()` | Establish TCP connection to remote host and port |
+| `revfs_client_disconnect()` | Send `QUIT` and cleanly close socket |
+| `revfs_client_ping()` | Send `PING` and receive `PONG` response |
+| `revfs_client_has_chunk()` | Query if remote CAS already contains a chunk by SHA-256 |
+| `revfs_client_store_chunk()` | Stream chunk binary payload to remote CAS with hash verification |
+| `revfs_client_get_chunk()` | Download chunk payload from remote server with integrity verification |
+| `revfs_client_get_meta()` | Fetch structured version metadata manifest from remote server |
+| `revfs_client_upload_meta()` | Submit version metadata manifest to finalize remote upload |
+| `revfs_client_upload()` | High-level pipeline: chunking → remote deduplication → missing chunk upload → metadata commit |
+| `revfs_client_download()` | High-level pipeline: fetch metadata → CAS cache check / remote chunk fetch → reassembly |
+| `revfs_client_list()` | Query and display formatted remote file catalog |
+| `revfs_client_history()` | Query and display formatted version history on remote server |
+
+**CLI commands wired up:**
+- `./revfs upload <file> [--host H] [--port P]` — Upload file to remote RevFS server
+- `./revfs download <file> <output> [--version N] [--host H] [--port P]` — Download file from remote RevFS server
+- `./revfs history <file> [--host H] [--port P]` — View remote file version history
+- `./revfs list [--host H] [--port P]` — List remote files
+- `./revfs ping [msg] [--host H] [--port P]` — Ping remote RevFS server
+
+**Key design decisions:**
+- Distributed Content-Addressed Storage deduplication: client queries `HAS_CHUNK` before sending chunk payload over network, saving bandwidth on redundant chunks
+- Local CAS caching on download: chunks retrieved from remote server are cached locally in CAS for fast subsequent access
+- Atomic download reassembly via `.tmp` file + rename with size and SHA-256 checksum validation
+- POSIX-standard socket handling supporting DNS resolution (`gethostbyname`) and IPv4 (`inet_pton`)
+
+---
+
+## ⬜ Remaining
 
 ### Day 10 — Concurrent Clients (pthreads)
 - `src/thread.c` — Thread pool with `pthread_create()`, `pthread_join()`
@@ -245,21 +278,21 @@ hash.2=1234567890...
 ```
 revfs/
 ├── src/
-│   ├── main.c          ← CLI entry point                    ✅ Day 1+8
+│   ├── main.c          ← CLI entry point                    ✅ Day 1+8+9
 │   ├── file.c          ← POSIX file abstraction             ✅ Day 2
 │   ├── chunk.c         ← Chunking + SHA-256                 ✅ Day 3
 │   ├── upload.c        ← Upload + metadata persistence      ✅ Day 4
 │   ├── download.c      ← Download + reconstruct             ✅ Day 5
 │   ├── version.c       ← Versioning                         ✅ Day 6
 │   ├── restore.c       ← Restore                            ✅ Day 7
-│   ├── server.c        ← TCP server                         ✅ Day 8
-│   ├── client.c        ← TCP client                         ⬜ Day 9
+│   ├── server.c        ← TCP server                         ✅ Day 8+9
+│   ├── client.c        ← TCP client                         ✅ Day 9
 │   ├── thread.c        ← Thread pool                        ⬜ Day 10
 │   ├── dedup.c         ← Deduplication + stats              ⬜ Day 11
 │   ├── replication.c   ← Two-node replication               ⬜ Day 12
 │   └── journal.c       ← WAL journaling                     ⬜ Day 13
 ├── include/
-│   └── revfs.h         ← Global header                      ✅ Day 1+2+3+4+5+6+7+8
+│   └── revfs.h         ← Global header                      ✅ Day 1+2+3+4+5+6+7+8+9
 ├── tests/
 │   ├── test_file.c     ← Day 2 tests (8/8 pass)            ✅ Day 2
 │   ├── test_chunk.c    ← Day 3 tests (10/10 pass)          ✅ Day 3
@@ -267,10 +300,11 @@ revfs/
 │   ├── test_download.c ← Day 5 tests (10/10 pass)          ✅ Day 5
 │   ├── test_version.c  ← Day 6 tests (10/10 pass)          ✅ Day 6
 │   ├── test_restore.c  ← Day 7 tests (10/10 pass)          ✅ Day 7
-│   └── test_server.c   ← Day 8 tests (10/10 pass)          ✅ Day 8
+│   ├── test_server.c   ← Day 8 tests (10/10 pass)          ✅ Day 8
+│   └── test_client.c   ← Day 9 tests (10/10 pass)          ✅ Day 9
 ├── data/               ← Runtime chunk/metadata storage
 ├── docs/               ← Architecture docs
-├── Makefile            ← Build system                        ✅ Day 1+2+3+4+5+6+7+8
+├── Makefile            ← Build system                        ✅ Day 1+2+3+4+5+6+7+8+9
 ├── README.md           ← Project docs                        ✅ Day 1
 ├── PROGRESS.md         ← This file
 └── .gitignore                                                ✅ Day 1
