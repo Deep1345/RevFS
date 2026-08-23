@@ -552,8 +552,11 @@ static int revfs_server_process_command_stream(const char *cmd_line, stream_t *s
             }
         }
 
+        /* 5. Allocate next version and persist metadata under lock */
+        revfs_lock_meta();
         int next_ver = revfs_meta_next_version(filename);
         if (next_ver < 0) {
+            revfs_unlock_meta();
             free(meta);
             if (send_all(client_fd, "ERR Failed determining next version\n", 36) < 0) return -1;
             return 1;
@@ -561,10 +564,12 @@ static int revfs_server_process_command_stream(const char *cmd_line, stream_t *s
         meta->version = next_ver;
 
         if (revfs_meta_write(meta) < 0) {
+            revfs_unlock_meta();
             free(meta);
             if (send_all(client_fd, "ERR Failed to persist metadata\n", 31) < 0) return -1;
             return 1;
         }
+        revfs_unlock_meta();
 
         free(meta);
         if (send_formatted(client_fd, "OK %d\n", next_ver) < 0) return -1;
@@ -635,12 +640,42 @@ int revfs_server_handle_client(int client_fd)
 }
 
 /* ------------------------------------------------------------------ */
-/*  revfs_server_start                                                */
-/*                                                                    */
-/*  Main server entry point: sets up socket, listens, and accepts     */
-/*  client connections in a loop.                                     */
+/*  Client Connection Task Context for Thread Pool Worker             */
 /* ------------------------------------------------------------------ */
-int revfs_server_start(int port)
+typedef struct {
+    int                 client_fd;
+    struct sockaddr_in  client_addr;
+} server_client_task_t;
+
+static void server_client_worker(void *arg)
+{
+    server_client_task_t *task = (server_client_task_t *)arg;
+    if (!task) return;
+
+    int client_fd = task->client_fd;
+    char client_ip[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &task->client_addr.sin_addr, client_ip, sizeof(client_ip));
+    int port = ntohs(task->client_addr.sin_port);
+
+    printf("revfs_server [worker]: client connected from %s:%d (fd=%d)\n",
+           client_ip, port, client_fd);
+
+    revfs_server_handle_client(client_fd);
+
+    printf("revfs_server [worker]: client disconnected from %s:%d (fd=%d)\n",
+           client_ip, port, client_fd);
+    revfs_file_close(client_fd);
+    free(task);
+}
+
+/* ------------------------------------------------------------------ */
+/*  revfs_server_start_threaded                                       */
+/*                                                                    */
+/*  Main server entry point: sets up socket, initializes thread pool, */
+/*  and accepts client connections in a loop, dispatching each        */
+/*  connection asynchronously to worker threads.                      */
+/* ------------------------------------------------------------------ */
+int revfs_server_start_threaded(int port, int num_threads)
 {
     /* Ignore SIGPIPE so write to closed client doesn't crash server */
     signal(SIGPIPE, SIG_IGN);
@@ -659,10 +694,22 @@ int revfs_server_start(int port)
         return -1;
     }
 
+    if (num_threads <= 0) {
+        num_threads = REVFS_DEFAULT_THREADS;
+    }
+
+    revfs_tpool_t *pool = revfs_tpool_create(num_threads, REVFS_DEFAULT_QUEUE_SIZE);
+    if (!pool) {
+        fprintf(stderr, "revfs_server: failed to create thread pool\n");
+        revfs_file_close(listen_fd);
+        return -1;
+    }
+
     g_server_running = 1;
     printf("\n╔══════════════════════════════════════════════╗\n");
     printf("║         RevFS Server %-10s              ║\n", REVFS_VERSION);
     printf("║  Listening on port: %-5d                    ║\n", actual_port);
+    printf("║  Worker threads:    %-5d                    ║\n", num_threads);
     printf("║  Data directory:    %-20s     ║\n", REVFS_DATA_DIR);
     printf("║  Press Ctrl+C to stop                        ║\n");
     printf("╚══════════════════════════════════════════════╝\n\n");
@@ -694,19 +741,41 @@ int revfs_server_start(int port)
                 continue;
             }
 
-            char client_ip[INET_ADDRSTRLEN];
-            inet_ntop(AF_INET, &client_addr.sin_addr, client_ip, sizeof(client_ip));
-            printf("revfs_server: client connected from %s:%d (fd=%d)\n",
-                   client_ip, ntohs(client_addr.sin_port), client_fd);
+            server_client_task_t *task = (server_client_task_t *)malloc(sizeof(server_client_task_t));
+            if (!task) {
+                fprintf(stderr, "revfs_server: out of memory for client task\n");
+                send_all(client_fd, "ERR Server out of memory\n", 25);
+                revfs_file_close(client_fd);
+                continue;
+            }
 
-            revfs_server_handle_client(client_fd);
+            task->client_fd   = client_fd;
+            task->client_addr = client_addr;
 
-            printf("revfs_server: client disconnected (fd=%d)\n", client_fd);
-            revfs_file_close(client_fd);
+            if (revfs_tpool_submit(pool, server_client_worker, task) != 0) {
+                fprintf(stderr, "revfs_server: failed to submit client task (queue full/shutting down)\n");
+                send_all(client_fd, "ERR Server busy\n", 16);
+                revfs_file_close(client_fd);
+                free(task);
+                continue;
+            }
         }
     }
 
-    printf("\nrevfs_server: shutting down...\n");
+    printf("\nrevfs_server: shutting down worker pool...\n");
+    revfs_tpool_destroy(pool, 1);
+
+    printf("revfs_server: closing listening socket...\n");
     revfs_file_close(listen_fd);
     return 0;
+}
+
+/* ------------------------------------------------------------------ */
+/*  revfs_server_start                                                */
+/*                                                                    */
+/*  Convenience wrapper starting server with default thread count.    */
+/* ------------------------------------------------------------------ */
+int revfs_server_start(int port)
+{
+    return revfs_server_start_threaded(port, REVFS_DEFAULT_THREADS);
 }

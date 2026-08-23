@@ -32,6 +32,15 @@
 #include <poll.h>
 #include <netdb.h>
 
+/* ------- POSIX Threads headers (Day 10+) ------- */
+#include <pthread.h>
+
+/* Concurrency defaults (Day 10) */
+#define REVFS_DEFAULT_THREADS    4
+#define REVFS_DEFAULT_QUEUE_SIZE 64
+#define REVFS_MAX_THREADS        64
+#define REVFS_MAX_QUEUE_SIZE     1024
+
 /* ===================================================================
  *  Day 2 — POSIX File Abstraction
  *
@@ -291,5 +300,52 @@ int      revfs_client_download(const char *host, int port, const char *filename,
                                int version, const char *output_path);
 int      revfs_client_list(const char *host, int port);
 int      revfs_client_history(const char *host, int port, const char *filename);
+
+/* ===================================================================
+ *  Day 10 — Concurrent Clients & POSIX Thread Pool
+ *
+ *  A generic worker thread pool using POSIX threads, mutexes, and
+ *  condition variables.  Handles concurrent client connections to the
+ *  RevFS server and provides thread synchronization primitives.
+ * =================================================================== */
+
+/* Thread pool work task */
+typedef struct revfs_task {
+    void (*function)(void *arg);
+    void  *arg;
+} revfs_task_t;
+
+/* Thread pool structure */
+typedef struct revfs_tpool {
+    pthread_t       *threads;          /* Worker thread IDs array */
+    int              num_threads;      /* Number of worker threads */
+    revfs_task_t    *queue;            /* Task ring buffer */
+    int              queue_size;       /* Capacity of task ring buffer */
+    int              queue_head;       /* Insertion index */
+    int              queue_tail;       /* Extraction index */
+    int              queue_count;      /* Number of tasks in queue */
+    int              active_tasks;     /* Tasks currently executing */
+    int              shutdown;         /* 0: running, 1: graceful, 2: immediate */
+    pthread_mutex_t  lock;             /* Mutex protecting queue & state */
+    pthread_cond_t   notify_not_empty; /* Signal when task available */
+    pthread_cond_t   notify_not_full;  /* Signal when queue space available */
+    pthread_cond_t   notify_idle;      /* Signal when all tasks complete */
+} revfs_tpool_t;
+
+/* Thread pool API */
+revfs_tpool_t *revfs_tpool_create(int num_threads, int queue_size);
+int            revfs_tpool_submit(revfs_tpool_t *pool, void (*function)(void *), void *arg);
+int            revfs_tpool_try_submit(revfs_tpool_t *pool, void (*function)(void *), void *arg);
+int            revfs_tpool_wait(revfs_tpool_t *pool);
+int            revfs_tpool_destroy(revfs_tpool_t *pool, int wait_for_tasks);
+int            revfs_tpool_active_workers(revfs_tpool_t *pool);
+int            revfs_tpool_queue_count(revfs_tpool_t *pool);
+
+/* Thread-safe metadata synchronization */
+void           revfs_lock_meta(void);
+void           revfs_unlock_meta(void);
+
+/* Multi-threaded server start */
+int            revfs_server_start_threaded(int port, int num_threads);
 
 #endif /* REVFS_H */

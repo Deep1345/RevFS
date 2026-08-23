@@ -181,9 +181,9 @@ int revfs_chunk_store(const void *data, size_t len, char *hash_hex_out)
 
     /* 5. Write the chunk atomically:                                 */
     /*    write to a temp file, sync, then rename.                    */
-    /*    This prevents partial chunks on crash.                      */
-    char tmp_path[530];
-    snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", path);
+    /*    This prevents partial chunks on crash and thread races.     */
+    char tmp_path[600];
+    snprintf(tmp_path, sizeof(tmp_path), "%s.tmp.%ld_%p", path, (long)getpid(), (void *)pthread_self());
 
     int fd = revfs_file_open(tmp_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (fd < 0)

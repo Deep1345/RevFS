@@ -18,12 +18,13 @@ static void print_usage(const char *program)
     printf("  restore  <file> <version>                         Restore a specific version\n");
     printf("  list     [--host H] [--port P]                    List all stored files\n");
     printf("  ping     [msg] [--host H] [--port P]              Ping a RevFS server\n");
-    printf("  server   [port]                                   Start TCP server (default: 9000)\n");
+    printf("  server   [port] [--threads N]                     Start multi-threaded TCP server (default: 9000, 4 threads)\n");
     printf("  stats                                             Show storage statistics\n");
     printf("\n");
     printf("Options:\n");
     printf("  --host <host>                Remote RevFS server host (default: 127.0.0.1)\n");
     printf("  --port <port>                Remote RevFS server port (default: 9000)\n");
+    printf("  --threads <N>                Number of worker threads (default: 4)\n");
     printf("  --version <N>                Specific file version number\n");
     printf("  --help                       Show this help message\n");
     printf("  --version                    Show version information\n");
@@ -206,14 +207,33 @@ int main(int argc, char *argv[])
 
     if (strcmp(cmd, "server") == 0 || strcmp(cmd, "serve") == 0) {
         int port = REVFS_DEFAULT_PORT;
-        if (argc >= 3) {
-            port = atoi(argv[2]);
-            if (port <= 0 || port > 65535) {
-                fprintf(stderr, "Invalid port: %s\n", argv[2]);
-                return EXIT_FAILURE;
+        int threads = REVFS_DEFAULT_THREADS;
+
+        for (int i = 2; i < argc; i++) {
+            if (strcmp(argv[i], "--threads") == 0 && i + 1 < argc) {
+                threads = atoi(argv[i + 1]);
+                if (threads <= 0 || threads > REVFS_MAX_THREADS) {
+                    fprintf(stderr, "Invalid thread count: %s (must be 1..%d)\n",
+                            argv[i + 1], REVFS_MAX_THREADS);
+                    return EXIT_FAILURE;
+                }
+                i++;
+            } else if (strcmp(argv[i], "--port") == 0 && i + 1 < argc) {
+                port = atoi(argv[i + 1]);
+                if (port <= 0 || port > 65535) {
+                    fprintf(stderr, "Invalid port: %s\n", argv[i + 1]);
+                    return EXIT_FAILURE;
+                }
+                i++;
+            } else if (argv[i][0] != '-') {
+                port = atoi(argv[i]);
+                if (port <= 0 || port > 65535) {
+                    fprintf(stderr, "Invalid port: %s\n", argv[i]);
+                    return EXIT_FAILURE;
+                }
             }
         }
-        int rc = revfs_server_start(port);
+        int rc = revfs_server_start_threaded(port, threads);
         return (rc == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
     }
 

@@ -246,11 +246,42 @@ hash.2=1234567890...
 
 ---
 
-## ⬜ Remaining
+### Day 10 — Concurrent Clients & POSIX Thread Pool
+**Files:**
+- `src/thread.c` — Reusable POSIX thread pool with ring-buffer queue, mutex & condition variables
+- `src/server.c` — Multi-threaded server accept loop dispatching client sessions to worker threads
+- `src/upload.c` & `src/restore.c` — Thread-safe metadata locks and collision-free atomic temporary files
+- `src/chunk.c` — Thread-safe unique temporary file paths for concurrent CAS chunk writes
+- `src/main.c` — Support `--threads <N>` argument in `./revfs server`
+- `tests/test_thread.c` — 10 automated concurrency tests (all passing)
 
-### Day 10 — Concurrent Clients (pthreads)
-- `src/thread.c` — Thread pool with `pthread_create()`, `pthread_join()`
-- `pthread_mutex_t` for shared state protection
+**Functions implemented:**
+| Function | Purpose |
+|----------|---------|
+| `revfs_tpool_create()` | Allocate and initialize worker threads, task circular buffer, mutex & condvars |
+| `revfs_tpool_submit()` | Enqueue task for execution, blocking if task buffer is full |
+| `revfs_tpool_try_submit()` | Non-blocking task enqueueing (returns `EAGAIN` if queue is full) |
+| `revfs_tpool_wait()` | Barrier synchronization: block until all queued and active tasks complete |
+| `revfs_tpool_destroy()` | Graceful (`wait_for_tasks=1`) or immediate (`wait_for_tasks=0`) worker shutdown & join |
+| `revfs_tpool_active_workers()` | Query count of worker threads currently processing tasks |
+| `revfs_tpool_queue_count()` | Query count of tasks currently waiting in queue buffer |
+| `revfs_lock_meta()` | Acquire global metadata mutex lock for safe atomic version increments |
+| `revfs_unlock_meta()` | Release global metadata mutex lock |
+| `revfs_server_start_threaded()` | Start multi-threaded server accepting and serving concurrent clients via worker pool |
+
+**CLI commands wired up:**
+- `./revfs server [port] [--threads N]` — Start multi-threaded TCP server (default: port 9000, 4 worker threads)
+
+**Key design decisions:**
+- Worker pool architecture: bounded circular ring buffer with condition variables (`notify_not_empty`, `notify_not_full`, `notify_idle`) preventing unbounded memory usage under load
+- Non-blocking server accept loop: client sockets are accepted and handed off immediately to pool workers via heap-allocated connection context, freeing the main thread to accept next connections
+- Metadata race prevention: `revfs_lock_meta()` ensures atomic version increments during concurrent uploads or version restores across threads
+- Collision-free temp files: chunk stores and metadata writes use thread-safe unique suffixes (`.tmp.<pid>_<tid>`) preventing concurrent worker write races before atomic POSIX renames
+- Graceful shutdown: `SIGINT`/`SIGTERM` or `revfs_server_stop()` drains running client requests through `revfs_tpool_destroy(pool, 1)` and cleanly closes listening sockets
+
+---
+
+## ⬜ Remaining
 
 ### Day 11 — Deduplication + Stats
 - `src/dedup.c` — Track logical vs physical storage
@@ -278,21 +309,21 @@ hash.2=1234567890...
 ```
 revfs/
 ├── src/
-│   ├── main.c          ← CLI entry point                    ✅ Day 1+8+9
+│   ├── main.c          ← CLI entry point                    ✅ Day 1+8+9+10
 │   ├── file.c          ← POSIX file abstraction             ✅ Day 2
 │   ├── chunk.c         ← Chunking + SHA-256                 ✅ Day 3
 │   ├── upload.c        ← Upload + metadata persistence      ✅ Day 4
 │   ├── download.c      ← Download + reconstruct             ✅ Day 5
 │   ├── version.c       ← Versioning                         ✅ Day 6
 │   ├── restore.c       ← Restore                            ✅ Day 7
-│   ├── server.c        ← TCP server                         ✅ Day 8+9
+│   ├── server.c        ← TCP server (multi-threaded)        ✅ Day 8+9+10
 │   ├── client.c        ← TCP client                         ✅ Day 9
-│   ├── thread.c        ← Thread pool                        ⬜ Day 10
+│   ├── thread.c        ← Thread pool & synchronization      ✅ Day 10
 │   ├── dedup.c         ← Deduplication + stats              ⬜ Day 11
 │   ├── replication.c   ← Two-node replication               ⬜ Day 12
 │   └── journal.c       ← WAL journaling                     ⬜ Day 13
 ├── include/
-│   └── revfs.h         ← Global header                      ✅ Day 1+2+3+4+5+6+7+8+9
+│   └── revfs.h         ← Global header                      ✅ Day 1+2+3+4+5+6+7+8+9+10
 ├── tests/
 │   ├── test_file.c     ← Day 2 tests (8/8 pass)            ✅ Day 2
 │   ├── test_chunk.c    ← Day 3 tests (10/10 pass)          ✅ Day 3
@@ -301,13 +332,14 @@ revfs/
 │   ├── test_version.c  ← Day 6 tests (10/10 pass)          ✅ Day 6
 │   ├── test_restore.c  ← Day 7 tests (10/10 pass)          ✅ Day 7
 │   ├── test_server.c   ← Day 8 tests (10/10 pass)          ✅ Day 8
-│   └── test_client.c   ← Day 9 tests (10/10 pass)          ✅ Day 9
+│   ├── test_client.c   ← Day 9 tests (10/10 pass)          ✅ Day 9
+│   └── test_thread.c   ← Day 10 tests (10/10 pass)         ✅ Day 10
 ├── data/               ← Runtime chunk/metadata storage
 ├── docs/               ← Architecture docs
-├── Makefile            ← Build system                        ✅ Day 1+2+3+4+5+6+7+8+9
+├── Makefile            ← Build system                        ✅ Day 1+2+3+4+5+6+7+8+9+10
 ├── README.md           ← Project docs                        ✅ Day 1
 ├── PROGRESS.md         ← This file
-└── .gitignore                                                ✅ Day 1
+└── .gitignore                                                ✅ Day 1+10
 ```
 
 ---
@@ -316,7 +348,7 @@ revfs/
 
 ```bash
 make              # Build everything
-make test         # Run all tests
+make test         # Run all tests (78 tests across Days 2-10)
 make clean        # Clean build artifacts
 ./revfs --help    # CLI help
 ./revfs --version # Version info

@@ -10,6 +10,7 @@ test_version
 test_restore
 test_server
 test_client
+test_thread
 compile_commands.json
 *.dSYM/
 

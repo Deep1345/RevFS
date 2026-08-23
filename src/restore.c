@@ -71,15 +71,18 @@ int revfs_restore(const char *filename, int source_version)
         }
     }
 
-    /* 3. Determine the next version number */
+    /* 3. Determine the next version number under metadata lock */
+    revfs_lock_meta();
     int new_version = revfs_meta_next_version(filename);
     if (new_version < 0) {
+        revfs_unlock_meta();
         free(source);
         return -1;
     }
 
     /* 4. Check that we are not restoring to the already-latest version */
     if (source_version == new_version - 1) {
+        revfs_unlock_meta();
         fprintf(stderr,
                 "revfs: restore: version %d is already the latest version\n",
                 source_version);
@@ -91,6 +94,7 @@ int revfs_restore(const char *filename, int source_version)
     /* 5. Build the new metadata record — same chunks, new version + timestamp */
     revfs_meta_t *restored = calloc(1, sizeof(revfs_meta_t));
     if (!restored) {
+        revfs_unlock_meta();
         free(source);
         return -1;
     }
@@ -111,10 +115,12 @@ int revfs_restore(const char *filename, int source_version)
 
     /* 6. Write the new version's metadata */
     if (revfs_meta_write(restored) < 0) {
+        revfs_unlock_meta();
         fprintf(stderr, "revfs: restore: failed to write metadata\n");
         free(restored);
         return -1;
     }
+    revfs_unlock_meta();
 
     /* 7. Print success message */
     printf("Restored \"%s\" v%d → v%d (%d chunks, %lld bytes)\n",

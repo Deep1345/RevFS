@@ -168,8 +168,8 @@ int revfs_meta_write(const revfs_meta_t *meta)
         return -1;
 
     /* 3. Write to a temp file first, then rename (atomic) */
-    char tmp_path[REVFS_MAX_PATH + 16];
-    snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", path);
+    char tmp_path[REVFS_MAX_PATH + 64];
+    snprintf(tmp_path, sizeof(tmp_path), "%s.tmp.%ld_%p", path, (long)getpid(), (void *)pthread_self());
 
     int fd = revfs_file_open(tmp_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (fd < 0)
@@ -437,9 +437,11 @@ int revfs_upload(const char *filepath)
         return -1;
     }
 
-    /* 5. Determine the next version number */
+    /* 5. Determine the next version number under metadata lock */
+    revfs_lock_meta();
     int version = revfs_meta_next_version(filename);
     if (version < 0) {
+        revfs_unlock_meta();
         free(chunk_hashes);
         return -1;
     }
@@ -447,6 +449,7 @@ int revfs_upload(const char *filepath)
     /* 6. Build and write the metadata */
     revfs_meta_t *meta = calloc(1, sizeof(revfs_meta_t));
     if (!meta) {
+        revfs_unlock_meta();
         free(chunk_hashes);
         return -1;
     }
@@ -465,10 +468,12 @@ int revfs_upload(const char *filepath)
     free(chunk_hashes);
 
     if (revfs_meta_write(meta) < 0) {
+        revfs_unlock_meta();
         fprintf(stderr, "revfs: upload: failed to write metadata\n");
         free(meta);
         return -1;
     }
+    revfs_unlock_meta();
 
     /* 7. Print success message */
     printf("Uploaded \"%s\" → version %d (%d chunks, %lld bytes)\n",
