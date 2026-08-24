@@ -261,8 +261,27 @@ static int revfs_server_process_command_stream(const char *cmd_line, stream_t *s
 
     /* 3. HELP */
     if (strcasecmp(buf, "HELP") == 0) {
-        const char *msg = "OK Supported commands: PING, LIST, INFO, HISTORY <file>, HAS_CHUNK <hash>, STORE_CHUNK <hash> <len>, GET_CHUNK <hash>, GET_META <file> [ver], UPLOAD_META <file> <size> <count>, HELP, QUIT\n";
+        const char *msg = "OK Supported commands: PING, LIST, INFO, HISTORY <file>, STATS, HAS_CHUNK <hash>, STORE_CHUNK <hash> <len>, GET_CHUNK <hash>, GET_META <file> [ver], UPLOAD_META <file> <size> <count>, HELP, QUIT\n";
         if (send_all(client_fd, msg, strlen(msg)) < 0) return -1;
+        return 1;
+    }
+
+    /* 3.1 STATS (Day 11) */
+    if (strcasecmp(buf, "STATS") == 0) {
+        revfs_stats_t stats;
+        if (revfs_stats_calculate(&stats) < 0) {
+            if (send_all(client_fd, "ERR Failed to calculate stats\n", 30) < 0) return -1;
+            return 1;
+        }
+
+        if (send_formatted(client_fd, "OK %d %d %lld %lld %d %d %.2f %lld %.2f\n",
+                           stats.total_files, stats.total_versions,
+                           (long long)stats.logical_bytes, (long long)stats.physical_bytes,
+                           stats.unique_chunks, stats.referenced_chunks,
+                           stats.dedup_ratio, (long long)stats.savings_bytes,
+                           stats.savings_percent) < 0) {
+            return -1;
+        }
         return 1;
     }
 

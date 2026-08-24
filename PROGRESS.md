@@ -279,16 +279,74 @@ hash.2=1234567890...
 - Collision-free temp files: chunk stores and metadata writes use thread-safe unique suffixes (`.tmp.<pid>_<tid>`) preventing concurrent worker write races before atomic POSIX renames
 - Graceful shutdown: `SIGINT`/`SIGTERM` or `revfs_server_stop()` drains running client requests through `revfs_tpool_destroy(pool, 1)` and cleanly closes listening sockets
 
+### Day 11 — Deduplication + Storage Stats
+**Files:**
+- `src/dedup.c` — Storage metrics calculator, CAS directory scanner & statistics printer
+- `src/server.c` — Extended wire protocol with `STATS` command
+- `src/client.c` — TCP client stats queries (`revfs_client_get_stats`, `revfs_client_stats`)
+- `src/main.c` — Wire up `./revfs stats [--host H] [--port P]` CLI command
+- `tests/test_dedup.c` — 10 automated unit & integration tests (all passing)
+
+**Functions implemented:**
+| Function | Purpose |
+|----------|---------|
+| `revfs_stats_chunks_info()` | Scan `data/chunks/` to count total stored chunks and physical disk usage |
+| `revfs_stats_calculate()` | Compute logical bytes, physical CAS usage, unique chunks, dedup ratio & savings |
+| `revfs_stats_print()` | Display formatted storage and deduplication statistics report table |
+| `revfs_stats()` | Calculate and display local storage statistics to stdout |
+| `revfs_client_get_stats()` | Query structured `revfs_stats_t` storage metrics from remote server over TCP |
+| `revfs_client_stats()` | Connect to remote server, fetch stats, and display formatted report |
+
+**Wire protocol implemented:**
+- `STATS` → `OK <files> <versions> <logical_bytes> <physical_bytes> <unique_chunks> <ref_chunks> <ratio> <savings_bytes> <savings_pct>\n`
+
+**CLI commands wired up:**
+- `./revfs stats` — Display storage and deduplication statistics for local repository
+- `./revfs stats [--host H] [--port P]` — Display storage statistics for remote RevFS server
+
+**Key design decisions:**
+- Accurate deduplication analysis: evaluates active manifests and calculates deduplication ratio ($\text{logical} / \text{physical}$) based on unique chunk references and physical bytes
+- DJB2 hash-set tracking: $O(1)$ amortized unique chunk membership lookup without external dependencies
+- Safe floating-point handling: prevents division-by-zero on empty repositories, defaulting cleanly to `1.00x` ratio and `0.0%` savings
+- Human-readable unit formatting (B, KB, MB, GB) with aligned ASCII box tables
+
+---
+
+### Day 12 — Two-Node Replication & Failover
+**Files:**
+- `src/replication.c` — Dual-node chunk/metadata writes, transparent read failover, degraded mode & sync/repair
+- `src/main.c` — Wire up `--primary` and `--replica` flags for `upload`, `download`, `sync`, and `repl-status`
+- `tests/test_replication.c` — 10 automated replication and failover tests (all passing)
+
+**Functions implemented:**
+| Function | Purpose |
+|----------|---------|
+| `revfs_repl_config_init()` | Initialize replication cluster configuration with primary/secondary endpoints |
+| `revfs_repl_ping()` | Check live health and reachability of both replication cluster nodes |
+| `revfs_repl_has_chunk()` | Query chunk presence across both primary and secondary nodes |
+| `revfs_repl_store_chunk()` | Dual-write chunk payload to both nodes honoring write quorum policy |
+| `revfs_repl_get_chunk()` | Fetch chunk from primary with automatic failover to secondary on error/corruption |
+| `revfs_repl_upload()` | High-level replicated upload: chunking → dual CAS sync → dual metadata commit |
+| `revfs_repl_download()` | High-level failover download: fallback metadata fetch → fallback chunk pull → reassembly |
+| `revfs_repl_sync()` | Two-way replica synchronization and auto-repair copying missing chunks/manifests |
+| `revfs_repl_list()` | List catalog from primary node, falling back to secondary if primary is down |
+| `revfs_repl_history()` | View file history from primary node, falling back to secondary if primary is down |
+
+**CLI commands wired up:**
+- `./revfs upload <file> --primary <H:P> --replica <H:P>` — Replicate file across both storage nodes
+- `./revfs download <file> <output> [--version N] --primary <H:P> --replica <H:P>` — Download with transparent node failover
+- `./revfs sync --primary <H:P> --replica <H:P>` — Run two-way sync and repair between nodes
+- `./revfs repl-status --primary <H:P> --replica <H:P>` — Inspect online/offline status of cluster nodes
+
+**Key design decisions:**
+- Transparent client-side failover: download operations automatically fail over to the secondary replica if the primary is offline, or if an individual chunk on the primary fails SHA-256 integrity verification
+- Configurable write quorum: supports degraded write mode (`quorum=1`) allowing uploads to succeed even when one replica node is down
+- Pure thread-safe POSIX `safe_basename`: eliminates libc `basename(3)` internal static buffer race conditions during concurrent operations
+- Two-way auto-repair: `revfs_repl_sync` bidirectional reconciliation detects and synchronizes missing chunks and version manifests between nodes
+
 ---
 
 ## ⬜ Remaining
-
-### Day 11 — Deduplication + Stats
-- `src/dedup.c` — Track logical vs physical storage
-- `./revfs stats` shows dedup savings
-
-### Day 12 — Two-Node Replication
-- `src/replication.c` — Write chunks to two nodes, fallback reads
 
 ### Day 13 — Write-Ahead Journaling + Crash Recovery
 - `src/journal.c` — WAL with BEGIN/WRITE/COMMIT, rollback on crash
@@ -309,21 +367,21 @@ hash.2=1234567890...
 ```
 revfs/
 ├── src/
-│   ├── main.c          ← CLI entry point                    ✅ Day 1+8+9+10
+│   ├── main.c          ← CLI entry point                    ✅ Day 1+8+9+10+11+12
 │   ├── file.c          ← POSIX file abstraction             ✅ Day 2
 │   ├── chunk.c         ← Chunking + SHA-256                 ✅ Day 3
-│   ├── upload.c        ← Upload + metadata persistence      ✅ Day 4
+│   ├── upload.c        ← Upload + metadata persistence      ✅ Day 4+10+12
 │   ├── download.c      ← Download + reconstruct             ✅ Day 5
 │   ├── version.c       ← Versioning                         ✅ Day 6
 │   ├── restore.c       ← Restore                            ✅ Day 7
-│   ├── server.c        ← TCP server (multi-threaded)        ✅ Day 8+9+10
-│   ├── client.c        ← TCP client                         ✅ Day 9
+│   ├── server.c        ← TCP server (multi-threaded)        ✅ Day 8+9+10+11
+│   ├── client.c        ← TCP client                         ✅ Day 9+11+12
 │   ├── thread.c        ← Thread pool & synchronization      ✅ Day 10
-│   ├── dedup.c         ← Deduplication + stats              ⬜ Day 11
-│   ├── replication.c   ← Two-node replication               ⬜ Day 12
+│   ├── dedup.c         ← Deduplication + stats              ✅ Day 11
+│   ├── replication.c   ← Two-node replication               ✅ Day 12
 │   └── journal.c       ← WAL journaling                     ⬜ Day 13
 ├── include/
-│   └── revfs.h         ← Global header                      ✅ Day 1+2+3+4+5+6+7+8+9+10
+│   └── revfs.h         ← Global header                      ✅ Day 1-12
 ├── tests/
 │   ├── test_file.c     ← Day 2 tests (8/8 pass)            ✅ Day 2
 │   ├── test_chunk.c    ← Day 3 tests (10/10 pass)          ✅ Day 3
@@ -333,12 +391,14 @@ revfs/
 │   ├── test_restore.c  ← Day 7 tests (10/10 pass)          ✅ Day 7
 │   ├── test_server.c   ← Day 8 tests (10/10 pass)          ✅ Day 8
 │   ├── test_client.c   ← Day 9 tests (10/10 pass)          ✅ Day 9
-│   └── test_thread.c   ← Day 10 tests (10/10 pass)         ✅ Day 10
+│   ├── test_thread.c   ← Day 10 tests (10/10 pass)         ✅ Day 10
+│   ├── test_dedup.c    ← Day 11 tests (10/10 pass)         ✅ Day 11
+│   └── test_replication.c ← Day 12 tests (10/10 pass)     ✅ Day 12
 ├── data/               ← Runtime chunk/metadata storage
 ├── docs/               ← Architecture docs
-├── Makefile            ← Build system                        ✅ Day 1+2+3+4+5+6+7+8+9+10
+├── Makefile            ← Build system                        ✅ Day 1-12
 ├── README.md           ← Project docs                        ✅ Day 1
-├── PROGRESS.md         ← This file
+├── PROGRESS.md         ← Progress tracker                    ✅ Day 1-12
 └── .gitignore                                                ✅ Day 1+10
 ```
 
@@ -347,9 +407,9 @@ revfs/
 ## 🛠 Build & Test
 
 ```bash
-make              # Build everything
-make test         # Run all tests (78 tests across Days 2-10)
+make              # Build everything (binary: revfs)
+make test         # Run all 108 tests across Days 2-12
 make clean        # Clean build artifacts
 ./revfs --help    # CLI help
-./revfs --version # Version info
+./revfs stats     # Storage and deduplication statistics
 ```

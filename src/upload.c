@@ -33,10 +33,6 @@
 /*  Internal helpers                                                   */
 /* ------------------------------------------------------------------ */
 
-/*
- * Extract the basename from a path.  We copy into a caller-supplied
- * buffer because POSIX basename() may modify its argument.
- */
 static int safe_basename(const char *path, char *out, size_t out_size)
 {
     if (!path || !out || out_size == 0) {
@@ -44,28 +40,40 @@ static int safe_basename(const char *path, char *out, size_t out_size)
         return -1;
     }
 
-    /* Work on a mutable copy (basename may modify the string) */
     size_t len = strlen(path);
-    char *tmp = malloc(len + 1);
-    if (!tmp) return -1;
-    memcpy(tmp, path, len + 1);
-
-    char *base = basename(tmp);
-    if (!base || strlen(base) == 0 || strcmp(base, "/") == 0) {
-        free(tmp);
+    if (len == 0) {
         errno = EINVAL;
         return -1;
     }
 
-    if (strlen(base) >= out_size) {
-        free(tmp);
-        errno = ENAMETOOLONG;
+    /* Strip trailing slashes */
+    while (len > 1 && path[len - 1] == '/') {
+        len--;
+    }
+
+    if (len == 1 && path[0] == '/') {
+        errno = EINVAL;
         return -1;
     }
 
-    strncpy(out, base, out_size - 1);
-    out[out_size - 1] = '\0';
-    free(tmp);
+    /* Find last slash */
+    const char *last_slash = NULL;
+    for (size_t i = 0; i < len; i++) {
+        if (path[i] == '/') {
+            last_slash = &path[i];
+        }
+    }
+
+    const char *start = last_slash ? (last_slash + 1) : path;
+    size_t base_len = (size_t)(&path[len] - start);
+
+    if (base_len == 0 || base_len >= out_size) {
+        errno = (base_len >= out_size) ? ENAMETOOLONG : EINVAL;
+        return -1;
+    }
+
+    memcpy(out, start, base_len);
+    out[base_len] = '\0';
     return 0;
 }
 

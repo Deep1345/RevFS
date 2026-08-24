@@ -348,4 +348,87 @@ void           revfs_unlock_meta(void);
 /* Multi-threaded server start */
 int            revfs_server_start_threaded(int port, int num_threads);
 
+/* ===================================================================
+ *  Day 11 — Deduplication + Storage Stats
+ *
+ *  Tracks and calculates storage metrics across RevFS:
+ *  - Logical data: total uncompressed/unduplicated file version bytes
+ *  - Physical data: actual disk usage of unique chunks in CAS
+ *  - Deduplication savings: ratio, bytes saved, percentage
+ * =================================================================== */
+
+typedef struct revfs_stats {
+    int     total_files;          /* Number of unique files stored */
+    int     total_versions;       /* Total version manifests across all files */
+    off_t   logical_bytes;        /* Sum of all file version sizes */
+    off_t   physical_bytes;       /* Actual disk space used by unique chunks */
+    int     unique_chunks;        /* Number of unique chunks stored in CAS */
+    int     referenced_chunks;    /* Total chunk references in all manifests */
+    double  dedup_ratio;          /* logical_bytes / physical_bytes (e.g. 2.50x) */
+    off_t   savings_bytes;        /* logical_bytes - physical_bytes */
+    double  savings_percent;      /* Space savings percentage (0..100) */
+} revfs_stats_t;
+
+/* Deduplication & storage statistics API */
+int      revfs_stats_chunks_info(int *unique_chunks_out, off_t *physical_bytes_out);
+int      revfs_stats_calculate(revfs_stats_t *stats_out);
+int      revfs_stats_print(const revfs_stats_t *stats);
+int      revfs_stats(void);
+
+/* Remote stats via client */
+int      revfs_client_get_stats(int sock, revfs_stats_t *stats_out);
+int      revfs_client_stats(const char *host, int port);
+
+/* ===================================================================
+ *  Day 12 — Two-Node Replication & Failover
+ *
+ *  Provides high availability and fault tolerance:
+ *  - Dual-node chunk and metadata writes (Primary + Secondary)
+ *  - Automatic read failover / fallback from Primary to Secondary
+ *  - Two-way replication sync and auto-repair between nodes
+ * =================================================================== */
+
+/* Node representation */
+typedef struct revfs_node {
+    char host[128];
+    int  port;
+    int  is_alive;
+} revfs_node_t;
+
+/* Replication cluster configuration */
+typedef struct revfs_repl_config {
+    revfs_node_t primary;
+    revfs_node_t secondary;
+    int          write_quorum;    /* 1 = allow degraded write, 2 = require both (default: 1) */
+    int          timeout_sec;     /* Connection timeout in seconds */
+} revfs_repl_config_t;
+
+/* Replication sync summary report */
+typedef struct revfs_repl_sync_report {
+    int chunks_synced_to_primary;
+    int chunks_synced_to_secondary;
+    int files_synced_to_primary;
+    int files_synced_to_secondary;
+    int total_chunks_checked;
+    int errors;
+} revfs_repl_sync_report_t;
+
+/* Replication API */
+int      revfs_repl_config_init(revfs_repl_config_t *cfg,
+                                const char *primary_host, int primary_port,
+                                const char *secondary_host, int secondary_port);
+int      revfs_repl_ping(const revfs_repl_config_t *cfg, int *primary_ok, int *secondary_ok);
+int      revfs_repl_upload(const revfs_repl_config_t *cfg, const char *filepath);
+int      revfs_repl_download(const revfs_repl_config_t *cfg, const char *filename,
+                             int version, const char *output_path);
+int      revfs_repl_store_chunk(const revfs_repl_config_t *cfg, const char *hash_hex,
+                                const void *data, size_t len);
+ssize_t  revfs_repl_get_chunk(const revfs_repl_config_t *cfg, const char *hash_hex,
+                               void *buf, size_t buf_size);
+int      revfs_repl_has_chunk(const revfs_repl_config_t *cfg, const char *hash_hex,
+                              int *primary_has, int *secondary_has);
+int      revfs_repl_sync(const revfs_repl_config_t *cfg, revfs_repl_sync_report_t *report_out);
+int      revfs_repl_list(const revfs_repl_config_t *cfg);
+int      revfs_repl_history(const revfs_repl_config_t *cfg, const char *filename);
+
 #endif /* REVFS_H */

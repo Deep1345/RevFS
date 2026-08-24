@@ -13,7 +13,6 @@
 #include <libgen.h>
 #include <time.h>
 
-/* Helper: Safe basename extractor */
 static int safe_basename(const char *path, char *out, size_t out_size)
 {
     if (!path || !out || out_size == 0) {
@@ -22,26 +21,39 @@ static int safe_basename(const char *path, char *out, size_t out_size)
     }
 
     size_t len = strlen(path);
-    char *tmp = malloc(len + 1);
-    if (!tmp) return -1;
-    memcpy(tmp, path, len + 1);
-
-    char *base = basename(tmp);
-    if (!base || strlen(base) == 0 || strcmp(base, "/") == 0) {
-        free(tmp);
+    if (len == 0) {
         errno = EINVAL;
         return -1;
     }
 
-    if (strlen(base) >= out_size) {
-        free(tmp);
-        errno = ENAMETOOLONG;
+    /* Strip trailing slashes */
+    while (len > 1 && path[len - 1] == '/') {
+        len--;
+    }
+
+    if (len == 1 && path[0] == '/') {
+        errno = EINVAL;
         return -1;
     }
 
-    strncpy(out, base, out_size - 1);
-    out[out_size - 1] = '\0';
-    free(tmp);
+    /* Find last slash */
+    const char *last_slash = NULL;
+    for (size_t i = 0; i < len; i++) {
+        if (path[i] == '/') {
+            last_slash = &path[i];
+        }
+    }
+
+    const char *start = last_slash ? (last_slash + 1) : path;
+    size_t base_len = (size_t)(&path[len] - start);
+
+    if (base_len == 0 || base_len >= out_size) {
+        errno = (base_len >= out_size) ? ENAMETOOLONG : EINVAL;
+        return -1;
+    }
+
+    memcpy(out, start, base_len);
+    out[base_len] = '\0';
     return 0;
 }
 
@@ -841,4 +853,117 @@ int revfs_client_history(const char *host, int port, const char *filename)
 
     revfs_client_disconnect(sock);
     return count;
+}
+
+/* ------------------------------------------------------------------ */
+/*  revfs_client_get_stats                                            */
+/*                                                                    */
+/*  Sends STATS to the connected server socket and parses the         */
+/*  returned metrics into stats_out.                                  */
+/* ------------------------------------------------------------------ */
+int revfs_client_get_stats(int sock, revfs_stats_t *stats_out)
+{
+    if (sock < 0 || !stats_out) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    memset(stats_out, 0, sizeof(revfs_stats_t));
+
+    const char *cmd = "STATS\n";
+    if (revfs_file_write_all(sock, cmd, strlen(cmd)) < 0) {
+        return -1;
+    }
+
+    char line[512];
+    if (read_socket_line(sock, line, sizeof(line)) < 0) {
+        return -1;
+    }
+
+    if (strncmp(line, "OK ", 3) != 0) {
+        fprintf(stderr, "revfs_client: STATS failed: %s\n", line);
+        return -1;
+    }
+
+    long long logical = 0, physical = 0, savings = 0;
+    double ratio = 1.0, percent = 0.0;
+    int files = 0, versions = 0, unique_chunks = 0, ref_chunks = 0;
+
+    int matched = sscanf(line + 3, "%d %d %lld %lld %d %d %lf %lld %lf",
+                         &files, &versions, &logical, &physical,
+                         &unique_chunks, &ref_chunks,
+                         &ratio, &savings, &percent);
+
+    if (matched < 6) {
+        fprintf(stderr, "revfs_client: invalid STATS response format: %s\n", line);
+        return -1;
+    }
+
+    stats_out->total_files = files;
+    stats_out->total_versions = versions;
+    stats_out->logical_bytes = (off_t)logical;
+    stats_out->physical_bytes = (off_t)physical;
+    stats_out->unique_chunks = unique_chunks;
+    stats_out->referenced_chunks = ref_chunks;
+    stats_out->dedup_ratio = ratio;
+    stats_out->savings_bytes = (off_t)savings;
+    stats_out->savings_percent = percent;
+
+    return 0;
+}
+
+/* ------------------------------------------------------------------ */
+/*  revfs_client_stats                                                */
+/*                                                                    */
+/*  Connects to remote RevFS server, retrieves storage stats, and     */
+/*  prints formatted statistics to stdout.                            */
+/* ------------------------------------------------------------------ */
+int revfs_client_stats(const char *host, int port)
+{
+    int sock = revfs_client_connect(host, port);
+    if (sock < 0) {
+        return -1;
+    }
+
+    revfs_stats_t stats;
+    if (revfs_client_get_stats(sock, &stats) < 0) {
+        revfs_client_disconnect(sock);
+        return -1;
+    }
+
+    const char *target = (host && *host) ? host : "127.0.0.1";
+    char logical_str[64];
+    char physical_str[64];
+    char savings_str[64];
+
+    format_size(stats.logical_bytes, logical_str, sizeof(logical_str));
+    format_size(stats.physical_bytes, physical_str, sizeof(physical_str));
+    format_size(stats.savings_bytes, savings_str, sizeof(savings_str));
+
+    int dedup_chunks = stats.referenced_chunks - stats.unique_chunks;
+    if (dedup_chunks < 0) dedup_chunks = 0;
+
+    printf("\n");
+    printf("Remote RevFS (%s:%d) Storage & Deduplication Statistics\n", target, port);
+    printf("─────────────────────────────────────────────────────────────\n");
+    printf("  Stored Files:              %d\n", stats.total_files);
+    printf("  Total Versions:            %d\n", stats.total_versions);
+    printf("  Total Referenced Chunks:   %d\n", stats.referenced_chunks);
+    if (dedup_chunks > 0) {
+        printf("  Unique Chunks in CAS:      %d (%d deduplicated)\n",
+               stats.unique_chunks, dedup_chunks);
+    } else {
+        printf("  Unique Chunks in CAS:      %d\n", stats.unique_chunks);
+    }
+    printf("─────────────────────────────────────────────────────────────\n");
+    printf("  Logical Data Stored:       %s\n", logical_str);
+    printf("  Physical Disk Usage (CAS): %s\n", physical_str);
+    printf("  Space Saved:               %s (%.1f%%)\n",
+           savings_str, stats.savings_percent);
+    printf("  Deduplication Ratio:       %.2fx\n", stats.dedup_ratio);
+    printf("─────────────────────────────────────────────────────────────\n");
+    printf("\n");
+
+    revfs_client_disconnect(sock);
+    return 0;
 }
