@@ -1,19 +1,6 @@
 # Build artifacts
 obj/
 revfs
-revfs-server
-test_file
-test_chunk
-test_upload
-test_download
-test_version
-test_restore
-test_server
-test_client
-test_thread
-test_dedup
-test_replication
-test_journal
 compile_commands.json
 *.dSYM/
 

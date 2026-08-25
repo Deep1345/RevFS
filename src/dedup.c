@@ -1,12 +1,8 @@
 /*
- * RevFS — Versioned Distributed File Storage System
+ * dedup.c — Storage metrics & deduplication analytics
  *
- * Day 11: Deduplication + Storage Statistics
- *
- * This module tracks and calculates storage metrics across RevFS:
- * - Logical storage: sum of file sizes across all stored file versions
- * - Physical storage: actual disk usage of unique content-addressed chunks
- * - Deduplication savings: deduplication ratio, saved bytes, percentage
+ * Scans metadata manifests and the content-addressed store to compute
+ * logical vs physical storage usage, unique chunks, and space savings.
  */
 
 #include "revfs.h"

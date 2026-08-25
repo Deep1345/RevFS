@@ -1,24 +1,10 @@
 /*
- * RevFS — Versioned Distributed File Storage System
+ * server.c — TCP server & wire protocol dispatcher
  *
- * Day 8 + Day 9: TCP Server & Wire Protocol
- *
- * This module implements a standalone TCP server built with POSIX sockets.
- * It listens for incoming TCP client connections and implements a
- * line-oriented wire protocol for remote storage operations.
- *
- * Supported commands:
- *   PING [msg]                         → PONG [msg]
- *   LIST                               → OK <count> files \n <file> <versions> <size> ... \n END
- *   INFO                               → OK RevFS <version> ...
- *   HISTORY <file>                     → OK <count> versions \n v<N> <size> <chunks> <time> ... \n END
- *   HAS_CHUNK <hash>                   → OK 1 (exists) | OK 0 (missing)
- *   STORE_CHUNK <hash> <len> \n <data> → OK | ERR <reason>
- *   GET_CHUNK <hash>                   → OK <len> \n <raw_bytes> | ERR <reason>
- *   GET_META <file> [version]          → OK <ver> <size> <chunks> <time> \n <hash0> ... \n END
- *   UPLOAD_META <file> <size> <count>  → (reads <count> hashes + END) → OK <version>
- *   HELP                               → OK Supported commands: ...
- *   QUIT / EXIT                        → BYE (closes connection)
+ * Implements a multi-threaded TCP server on top of POSIX sockets.
+ * Handles client connections and parses/dispatches line-oriented protocol commands:
+ *   PING, LIST, INFO, HISTORY, STATS, HAS_CHUNK, STORE_CHUNK, GET_CHUNK,
+ *   GET_META, UPLOAD_META, HELP, QUIT
  */
 
 #include "revfs.h"
@@ -266,7 +252,7 @@ static int revfs_server_process_command_stream(const char *cmd_line, stream_t *s
         return 1;
     }
 
-    /* 3.1 STATS (Day 11) */
+    /* STATS */
     if (strcasecmp(buf, "STATS") == 0) {
         revfs_stats_t stats;
         if (revfs_stats_calculate(&stats) < 0) {

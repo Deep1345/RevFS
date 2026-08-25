@@ -1,10 +1,8 @@
 /*
- * RevFS — Versioned Distributed File Storage System
+ * replication.c — Two-node replication, failover, and sync
  *
- * Day 12: Two-Node Replication & High Availability
- *
- * This module implements dual-node replication, failover reads,
- * degraded mode operation, and two-way replica synchronization/repair.
+ * Implements dual-node writes, transparent failover reads from secondary,
+ * degraded mode operations, and two-way replica reconciliation/repair.
  */
 
 #include "revfs.h"

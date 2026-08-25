@@ -1,18 +1,9 @@
 /*
- * RevFS — Versioned Distributed File Storage System
+ * thread.c — POSIX worker thread pool & concurrency primitives
  *
- * Day 10: POSIX Thread Pool & Concurrency Layer
- *
- * This module implements a reusable, high-performance worker thread pool
- * using standard POSIX threads (pthread), mutexes (pthread_mutex_t),
- * and condition variables (pthread_cond_t).
- *
- * It provides:
- *   - Circular ring-buffer task queue with backpressure.
- *   - Dynamic work distribution across worker threads.
- *   - Barrier synchronization (revfs_tpool_wait).
- *   - Graceful and immediate shutdown modes (revfs_tpool_destroy).
- *   - Thread-safe global metadata synchronization locks.
+ * Implements a ring-buffer task queue with worker threads, condition
+ * variables for synchronization, and a global metadata mutex for atomic
+ * version allocations across concurrent requests.
  */
 
 #include "revfs.h"

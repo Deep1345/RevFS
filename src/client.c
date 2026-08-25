@@ -1,12 +1,8 @@
 /*
- * RevFS — Versioned Distributed File Storage System
+ * client.c — TCP client for remote storage operations
  *
- * Day 9: Remote Upload/Download over TCP Client
- *
- * This module implements the TCP client connecting to a RevFS server,
- * handling chunk-level transfers, remote metadata queries, distributed
- * deduplication, and high-level remote operations (upload, download,
- * list, history).
+ * Implements chunk syncing, remote metadata transfers, and client-side
+ * deduplication queries against remote RevFS servers.
  */
 
 #include "revfs.h"

@@ -1,31 +1,8 @@
 /*
- * RevFS — Versioned Distributed File Storage System
+ * journal.c — Write-Ahead Journaling (WAL) & crash recovery
  *
- * Day 13: Write-Ahead Journaling + Crash Recovery
- *
- * This module provides a Write-Ahead Log (WAL) that records all
- * intended file operations BEFORE they happen.  If RevFS crashes
- * mid-operation, the WAL is replayed on next startup to either
- * finish committed transactions or roll back incomplete ones.
- *
- * WAL record format (line-oriented, text, one record per line):
- *
- *   BEGIN <txn_id>
- *   WRITE <txn_id> <target_path> <size>
- *   COMMIT <txn_id>
- *   ABORT <txn_id>
- *
- * Recovery strategy:
- *   - Scan the WAL from top to bottom
- *   - Any transaction with a COMMIT record → no action needed (already done)
- *   - Any transaction with only BEGIN (no COMMIT/ABORT) → rollback
- *     (delete any partial files listed in WRITE entries)
- *   - ABORT records → same as rollback (clean up WRITE targets)
- *
- * The WAL lives at: data/journal.wal
- * A backup is kept at: data/journal.wal.bak (previous WAL after recovery)
- *
- * Thread-safety: all WAL operations are protected by a pthread mutex.
+ * Records write operations prior to disk mutation. Replayed on startup
+ * to rollback incomplete/aborted transactions and ensure repository consistency.
  */
 
 #include "revfs.h"
