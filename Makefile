@@ -13,7 +13,7 @@ SRCS = $(wildcard $(SRC_DIR)/*.c)
 OBJS = $(patsubst $(SRC_DIR)/%.c, $(OBJ_DIR)/%.o, $(SRCS))
 
 # Shared core dependencies for integration tests
-CORE_SRCS = src/replication.c src/dedup.c src/client.c src/server.c src/thread.c src/restore.c src/version.c src/upload.c src/download.c src/chunk.c src/file.c
+CORE_SRCS = src/journal.c src/replication.c src/dedup.c src/client.c src/server.c src/thread.c src/restore.c src/version.c src/upload.c src/download.c src/chunk.c src/file.c
 
 .PHONY: all clean dirs test
 
@@ -30,7 +30,7 @@ dirs:
 	@mkdir -p data
 
 # -------- Tests --------
-test: dirs test_file test_chunk test_upload test_download test_version test_restore test_server test_client test_thread test_dedup test_replication
+test: dirs test_file test_chunk test_upload test_download test_version test_restore test_server test_client test_thread test_dedup test_replication test_journal
 	@echo ""
 	@echo "Running Day 2 tests..."
 	@./test_file
@@ -64,6 +64,9 @@ test: dirs test_file test_chunk test_upload test_download test_version test_rest
 	@echo ""
 	@echo "Running Day 12 tests..."
 	@./test_replication
+	@echo ""
+	@echo "Running Day 13 tests..."
+	@./test_journal
 
 test_file: tests/test_file.c src/file.c
 	$(CC) $(CFLAGS) -o $@ $^
@@ -98,5 +101,8 @@ test_dedup: tests/test_dedup.c $(CORE_SRCS)
 test_replication: tests/test_replication.c $(CORE_SRCS)
 	$(CC) $(CFLAGS) -o $@ $^
 
+test_journal: tests/test_journal.c src/journal.c src/file.c
+	$(CC) $(CFLAGS) -o $@ $^
+
 clean:
-	rm -rf $(OBJ_DIR) $(BIN) test_file test_chunk test_upload test_download test_version test_restore test_server test_client test_thread test_dedup test_replication
+	rm -rf $(OBJ_DIR) $(BIN) test_file test_chunk test_upload test_download test_version test_restore test_server test_client test_thread test_dedup test_replication test_journal

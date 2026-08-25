@@ -13,6 +13,7 @@ test_client
 test_thread
 test_dedup
 test_replication
+test_journal
 compile_commands.json
 *.dSYM/
 

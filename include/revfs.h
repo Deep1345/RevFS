@@ -431,4 +431,46 @@ int      revfs_repl_sync(const revfs_repl_config_t *cfg, revfs_repl_sync_report_
 int      revfs_repl_list(const revfs_repl_config_t *cfg);
 int      revfs_repl_history(const revfs_repl_config_t *cfg, const char *filename);
 
+/* ===================================================================
+ *  Day 13 — Write-Ahead Journaling + Crash Recovery
+ *
+ *  Provides transactional crash recovery for RevFS operations.
+ *  All intended file writes are recorded in a WAL (Write-Ahead Log)
+ *  BEFORE they happen.  On crash, the WAL is replayed to roll back
+ *  incomplete transactions.
+ *
+ *  WAL record format (text, line-oriented):
+ *    BEGIN <txn_id>
+ *    WRITE <txn_id> <path> <size>
+ *    COMMIT <txn_id>
+ *    ABORT <txn_id>
+ * =================================================================== */
+
+#define REVFS_JOURNAL_MAX_WRITES  64
+
+/* Journal (WAL) state */
+typedef struct revfs_journal {
+    int              fd;                /* WAL file descriptor */
+    long             next_txn_id;       /* Next transaction ID to assign */
+    long             current_txn_id;    /* Active transaction ID (0 if none) */
+    int              active_txn;        /* 1 if a transaction is in progress */
+    int              num_writes;        /* Write entries in active transaction */
+    char             write_paths[REVFS_JOURNAL_MAX_WRITES][REVFS_MAX_PATH];
+    pthread_mutex_t  lock;              /* Thread-safety mutex */
+} revfs_journal_t;
+
+/* Journal API */
+revfs_journal_t *revfs_journal_open(void);
+int              revfs_journal_close(revfs_journal_t *j);
+long             revfs_journal_begin(revfs_journal_t *j);
+int              revfs_journal_write(revfs_journal_t *j, const char *target_path,
+                                      size_t size);
+int              revfs_journal_commit(revfs_journal_t *j);
+int              revfs_journal_abort(revfs_journal_t *j);
+int              revfs_journal_recover(revfs_journal_t *j);
+int              revfs_journal_status(const revfs_journal_t *j,
+                                       int *active_txn_out,
+                                       long *current_txn_id_out,
+                                       long *next_txn_id_out);
+
 #endif /* REVFS_H */

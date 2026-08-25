@@ -5,7 +5,7 @@
 
 ---
 
-## ✅ Completed
+## ✅ Completed (Days 1–15)
 
 ### Day 1 — Project Skeleton + CLI
 **Files:**
@@ -346,19 +346,41 @@ hash.2=1234567890...
 
 ---
 
-## ⬜ Remaining
-
 ### Day 13 — Write-Ahead Journaling + Crash Recovery
-- `src/journal.c` — WAL with BEGIN/WRITE/COMMIT, rollback on crash
+**Files:**
+- `src/journal.c` — WAL journaling with crash recovery
+- `tests/test_journal.c` — 10 automated tests (all passing)
 
-### Day 14 — Automated Tests + Demo Script
-- `tests/test_*.c` — Comprehensive test suite
-- `scripts/demo.sh` — End-to-end demo
+**Functions implemented:**
+| Function | Purpose |
+|----------|---------|
+| `revfs_journal_open()` | Open/create WAL file, auto-recover if pending transactions exist |
+| `revfs_journal_close()` | Sync and close WAL; abort any active transaction |
+| `revfs_journal_begin()` | Start a new transaction, write `BEGIN <txn_id>` record |
+| `revfs_journal_write()` | Record an intended write operation (`WRITE <txn_id> <path> <size>`) |
+| `revfs_journal_commit()` | Mark transaction as committed (`COMMIT <txn_id>`), fsync |
+| `revfs_journal_abort()` | Abort transaction, clean up write targets, write `ABORT` record |
+| `revfs_journal_recover()` | Replay WAL: rollback uncommitted transactions, preserve committed ones |
+| `revfs_journal_status()` | Query active transaction state and next transaction ID |
+
+**Key design decisions:**
+- WAL uses line-oriented text records (BEGIN/WRITE/COMMIT/ABORT) for human-readable debugging
+- Every WAL record is followed by `fsync()` for durability guarantees
+- Uncommitted transactions are automatically rolled back on next `revfs_journal_open()`
+- Old WAL is backed up to `journal.wal.bak` before starting fresh after recovery
+- Thread-safe via `pthread_mutex_t` protecting all WAL operations
+- Heap-allocated recovery state to prevent stack overflow on large WAL files
+
+---
+
+### Day 14 — Demo Script
+**Files:**
+- `scripts/demo.sh` — End-to-end demo exercising all RevFS features
 
 ### Day 15 — README + Cleanup + v1.0.0 Tag
-- Polish README with architecture diagrams
-- Code cleanup, final review
-- `git tag v1.0.0`
+**Files:**
+- `README.md` — Comprehensive README with architecture, usage, wire protocol, design decisions
+- `PROGRESS.md` — Finalized progress tracker
 
 ---
 
@@ -379,9 +401,9 @@ revfs/
 │   ├── thread.c        ← Thread pool & synchronization      ✅ Day 10
 │   ├── dedup.c         ← Deduplication + stats              ✅ Day 11
 │   ├── replication.c   ← Two-node replication               ✅ Day 12
-│   └── journal.c       ← WAL journaling                     ⬜ Day 13
+│   └── journal.c       ← WAL journaling + crash recovery    ✅ Day 13
 ├── include/
-│   └── revfs.h         ← Global header                      ✅ Day 1-12
+│   └── revfs.h         ← Global header                      ✅ Day 1-13
 ├── tests/
 │   ├── test_file.c     ← Day 2 tests (8/8 pass)            ✅ Day 2
 │   ├── test_chunk.c    ← Day 3 tests (10/10 pass)          ✅ Day 3
@@ -393,12 +415,15 @@ revfs/
 │   ├── test_client.c   ← Day 9 tests (10/10 pass)          ✅ Day 9
 │   ├── test_thread.c   ← Day 10 tests (10/10 pass)         ✅ Day 10
 │   ├── test_dedup.c    ← Day 11 tests (10/10 pass)         ✅ Day 11
-│   └── test_replication.c ← Day 12 tests (10/10 pass)     ✅ Day 12
+│   ├── test_replication.c ← Day 12 tests (10/10 pass)      ✅ Day 12
+│   └── test_journal.c  ← Day 13 tests (10/10 pass)         ✅ Day 13
+├── scripts/
+│   └── demo.sh         ← End-to-end demo                    ✅ Day 14
 ├── data/               ← Runtime chunk/metadata storage
 ├── docs/               ← Architecture docs
-├── Makefile            ← Build system                        ✅ Day 1-12
-├── README.md           ← Project docs                        ✅ Day 1
-├── PROGRESS.md         ← Progress tracker                    ✅ Day 1-12
+├── Makefile            ← Build system                        ✅ Day 1-13
+├── README.md           ← Project docs                        ✅ Day 15
+├── PROGRESS.md         ← Progress tracker                    ✅ Day 1-15
 └── .gitignore                                                ✅ Day 1+10
 ```
 
@@ -408,8 +433,9 @@ revfs/
 
 ```bash
 make              # Build everything (binary: revfs)
-make test         # Run all 108 tests across Days 2-12
+make test         # Run all 118 tests across Days 2-13
 make clean        # Clean build artifacts
 ./revfs --help    # CLI help
 ./revfs stats     # Storage and deduplication statistics
 ```
+
